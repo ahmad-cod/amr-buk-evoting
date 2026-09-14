@@ -13,7 +13,7 @@ import api from './routes';
 export function createApp(): Application {
   const app = express();
 
-  // Behind a proxy (Nginx, Render, etc.) so secure cookies + IPs work correctly.
+  // Behind a proxy (Nginx, Render, Vercel, etc.) so secure cookies + IPs work correctly.
   app.set('trust proxy', 1);
 
   app.use(
@@ -44,3 +44,9 @@ export function createApp(): Application {
 
   return app;
 }
+
+// 1. Create the application instance
+const app = createApp();
+
+// 2. Export default for Vercel's serverless runtime
+export default app;
