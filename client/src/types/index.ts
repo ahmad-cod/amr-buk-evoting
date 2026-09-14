@@ -239,8 +239,28 @@ export interface ImportPreview {
   sampleRows: Record<string, string>[];
   conflicts: ImportConflict[];
   errors: Array<{ row: number; identifier?: string; serialNumber?: string; reason: string }>;
-  importableRows?: Array<any>;
-  rowsRequiringReview?: Array<any>;
+  importableRows?: Array<{ rowNum: number; serialNumber?: string; fullName?: string; email?: string; status: string }>;
+  rowsRequiringReview?: Array<{ rowNum: number; serialNumber?: string; fullName?: string; email?: string; status: string }>;
+}
+
+export interface RosterHintMatch {
+  id: string;
+  fullName: string;
+  serialNumber?: string;
+  maskedEmail: string;
+  programme?: string;
+  faculty?: string;
+  alreadyRegistered?: boolean;
+  isEligible?: boolean;
+}
+
+export interface RequestVerificationResponse {
+  message: string;
+  inRegister?: boolean;
+  status?: 'DISPATCHED' | 'NOT_FOUND' | 'ALREADY_REGISTERED' | 'REVOKED';
+  maskedEmail?: string;
+  helpfulHint?: string;
+  devToken?: string;
 }
 
 export interface PageMeta {
