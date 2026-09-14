@@ -166,7 +166,7 @@ export function VerifyPage() {
             <div className="mt-4 rounded-md border border-charcoal-200 bg-charcoal-50 p-3 text-xs text-charcoal-500 text-left">
               <p className="font-semibold text-charcoal-700">Why might this happen?</p>
               <ul className="mt-1 list-disc pl-4 space-y-1">
-                <li>Verification links expire after 15 minutes for your security.</li>
+                <li>Verification links expire after 30 minutes for your security.</li>
                 <li>Each link can only be used once.</li>
                 <li>A newer verification link may have been requested.</li>
               </ul>

@@ -230,7 +230,7 @@ function CheckInboxStep({
 
       <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-charcoal-500">
         <Clock size={13} className="text-amr-teal" />
-        <span>Link expires in <strong>15 minutes</strong></span>
+        <span>Link expires in <strong>30 minutes</strong></span>
       </div>
 
       <div className="mt-5 rounded-md border border-charcoal-200 bg-charcoal-50 p-3.5 text-left text-xs text-charcoal-600">
