@@ -22,6 +22,7 @@ import {
   VoteConfirmationModal,
   VoteReceiptCard,
 } from '@/components/Voting';
+import { CandidateAvatar } from '@/components/CandidateAvatar';
 import { initials } from '@/lib/utils';
 import type { BallotPosition } from '@/types';
 
@@ -254,15 +255,11 @@ export function VotingPage() {
                               select(p.position.id, c.id, p.position.maxVotesPerVoter)
                             }
                           />
-                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-amr-navy">
-                            {c.imageUrl ? (
-                              <img src={c.imageUrl} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-white">
-                                {initials(c.fullName)}
-                              </div>
-                            )}
-                          </div>
+                          <CandidateAvatar
+                            imageUrl={c.imageUrl}
+                            fullName={c.fullName}
+                            variant="avatar"
+                          />
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-charcoal-900">{c.fullName}</p>
                             {c.campaignSlogan && (
@@ -270,8 +267,10 @@ export function VotingPage() {
                                 “{c.campaignSlogan}”
                               </p>
                             )}
-                            {c.department && (
-                              <p className="truncate text-xs text-charcoal-400">{c.department}</p>
+                            {(c.faculty || c.department || c.level) && (
+                              <p className="truncate text-xs text-charcoal-400">
+                                {[c.faculty, c.department, c.level].filter(Boolean).join(' · ')}
+                              </p>
                             )}
                           </div>
                           <span

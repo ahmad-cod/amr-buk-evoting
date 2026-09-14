@@ -57,6 +57,7 @@ export const getBallot = asyncHandler(async (req: Request, res: Response) => {
       .map((c) => ({
         id: c.id,
         fullName: c.fullName,
+        faculty: c.faculty,
         department: c.department,
         level: c.level,
         campaignSlogan: c.campaignSlogan,

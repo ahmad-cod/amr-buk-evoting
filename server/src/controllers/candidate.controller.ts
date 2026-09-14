@@ -7,9 +7,8 @@ import { Candidate } from '../models/Candidate';
 import { Election } from '../models/Election';
 import { Position } from '../models/Position';
 import { CANDIDATE_STATUS } from '../config/constants';
-import { normalizeRegNumber } from '../utils/regNumber';
 import { recordAudit } from '../services/audit.service';
-import { uploadCandidateImage, deleteCandidateImage } from '../services/s3.service';
+import { uploadCandidatePhoto, deleteCandidatePhoto } from '../services/supabase.service';
 
 async function ensureElection(id: string) {
   if (!mongoose.isValidObjectId(id)) throw ApiError.badRequest('Invalid election id');
@@ -45,14 +44,12 @@ export const createCandidate = asyncHandler(async (req: Request, res: Response) 
     throw ApiError.badRequest(`This position already has the maximum of ${position.maxCandidates} candidates`);
   }
 
-  const reg = normalizeRegNumber(body.registrationNumber as string);
   const defaultStatus = election.requireCandidateApproval
     ? CANDIDATE_STATUS.PENDING
     : CANDIDATE_STATUS.APPROVED;
 
   const candidate = await Candidate.create({
     ...body,
-    registrationNumber: reg,
     electionId: election._id,
     status: (body.status as string) || defaultStatus,
     createdBy: req.admin!.id,
@@ -71,9 +68,7 @@ export const createCandidate = asyncHandler(async (req: Request, res: Response) 
 export const updateCandidate = asyncHandler(async (req: Request, res: Response) => {
   const candidate = await findCandidate(req.params.id);
   const body = req.body as Record<string, unknown>;
-  if (body.registrationNumber) {
-    body.registrationNumber = normalizeRegNumber(body.registrationNumber as string);
-  }
+  delete body.registrationNumber; // Ensure registration number cannot be written
   Object.assign(candidate, body);
   await candidate.save();
 
@@ -88,7 +83,7 @@ export const updateCandidate = asyncHandler(async (req: Request, res: Response) 
 
 export const deleteCandidate = asyncHandler(async (req: Request, res: Response) => {
   const candidate = await findCandidate(req.params.id);
-  await deleteCandidateImage(candidate.s3Key);
+  if (candidate.s3Key) await deleteCandidatePhoto(candidate.s3Key);
   await candidate.deleteOne();
 
   await recordAudit(req, {
@@ -127,15 +122,15 @@ export const rejectCandidate = asyncHandler(async (req: Request, res: Response) 
 export const uploadImage = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw ApiError.badRequest('Please choose an image to upload');
   const candidate = await findCandidate(req.params.id);
-  const election = await Election.findById(candidate.electionId);
-  if (!election) throw ApiError.notFound('Election not found');
 
-  // Replace existing image if present.
-  if (candidate.s3Key) await deleteCandidateImage(candidate.s3Key);
+  // Replace existing image in Supabase if present
+  if (candidate.s3Key) {
+    await deleteCandidatePhoto(candidate.s3Key);
+  }
 
-  const { imageUrl, s3Key } = await uploadCandidateImage(req.file, election.slug, candidate.id);
+  const { imageUrl, storageKey } = await uploadCandidatePhoto(req.file, candidate.id);
   candidate.imageUrl = imageUrl;
-  candidate.s3Key = s3Key;
+  candidate.s3Key = storageKey;
   await candidate.save();
 
   await recordAudit(req, {
