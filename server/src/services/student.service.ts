@@ -637,6 +637,7 @@ export async function verifyEligibility(
   }
 
   const lookup = normEmail || norm;
+  const escaped = lookup.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const student = await Student.findOne({
     $or: [
       { normalizedEmail: lookup },
@@ -644,6 +645,8 @@ export async function verifyEligibility(
       { serialNumber: lookup },
       { rosterSerialNumber: lookup },
       { registrationNumber: lookup.toUpperCase() },
+      { fullName: new RegExp(`^${escaped}$`, 'i') },
+      { name: new RegExp(`^${escaped}$`, 'i') },
     ],
   });
 

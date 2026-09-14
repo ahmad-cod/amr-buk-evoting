@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { Request, Response, NextFunction } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError } from '../utils/ApiError';
@@ -72,27 +73,76 @@ export const UNIFORM_VERIFICATION_MESSAGE =
  * Anti-enumeration: returns identical success response regardless of roster presence or registration state.
  */
 export const requestVerification = asyncHandler(async (req: Request, res: Response) => {
-  const { identifier, email } = req.body as { identifier?: string; email?: string };
+  const { identifier, email, voterId } = req.body as {
+    identifier?: string;
+    email?: string;
+    voterId?: string;
+  };
   const rawInput = (email || identifier || '').trim();
   const mail = normalizeEmail(rawInput);
 
-  if (!mail && !rawInput) {
-    throw ApiError.badRequest('Please enter a valid email address.');
+  let voter;
+
+  if (voterId && mongoose.isValidObjectId(voterId)) {
+    voter = await Student.findById(voterId).select(
+      '+verificationTokenHash +verificationTokenExpires +verificationTokenSentAt',
+    );
+  } else {
+    if (!mail && !rawInput) {
+      throw ApiError.badRequest('Please enter a valid email address or roster identifier.');
+    }
+
+    const query = mail
+      ? { $or: [{ normalizedEmail: mail }, { email: mail }] }
+      : {
+          $or: [
+            { normalizedEmail: normalizeEmail(rawInput) },
+            { email: normalizeEmail(rawInput) },
+            { serialNumber: rawInput },
+            { rosterSerialNumber: rawInput },
+            { registrationNumber: rawInput.toUpperCase() },
+          ],
+        };
+
+    voter = await Student.findOne(query).select(
+      '+verificationTokenHash +verificationTokenExpires +verificationTokenSentAt',
+    );
   }
 
-  const query = mail
-    ? { email: mail }
-    : { $or: [{ email: normalizeEmail(rawInput) }, { serialNumber: rawInput }, { registrationNumber: rawInput.toUpperCase() }] };
-
-  const voter = await Student.findOne(query).select(
-    '+verificationTokenHash +verificationTokenExpires +verificationTokenSentAt',
-  );
-
-  // Anti-enumeration: if voter is missing, ineligible, or already registered,
-  // perform a constant dummy hash calculation and return the identical success message.
-  if (!voter || !voter.isEligible || voter.hasRegistered) {
+  // If voter is missing from the register: provide helpful hints while maintaining anti-enumeration compatibility
+  if (!voter) {
     crypto.createHash('sha256').update(rawInput + 'amr_enumeration_salt').digest('hex');
-    return ok(res, { message: UNIFORM_VERIFICATION_MESSAGE });
+    return ok(res, {
+      message: UNIFORM_VERIFICATION_MESSAGE,
+      inRegister: false,
+      status: 'NOT_FOUND',
+      helpfulHint:
+        'This email address was not found on the accredited AMR Club BUK voter register. Most members registered using their personal Gmail or university email. Check your spelling or use our Name/S/N lookup below to locate your accredited email hint.',
+    });
+  }
+
+  // If voter is revoked or ineligible
+  if (!voter.isEligible || voter.status === 'REVOKED') {
+    return ok(res, {
+      message: UNIFORM_VERIFICATION_MESSAGE,
+      inRegister: true,
+      isEligible: false,
+      status: 'REVOKED',
+      helpfulHint:
+        'Your voter accreditation is currently inactive or revoked. Please contact the AMR IEC electoral committee.',
+    });
+  }
+
+  // If voter has already completed registration
+  if (voter.hasRegistered) {
+    return ok(res, {
+      message: UNIFORM_VERIFICATION_MESSAGE,
+      inRegister: true,
+      alreadyRegistered: true,
+      status: 'ALREADY_REGISTERED',
+      helpfulHint:
+        'An account has already been registered with this email. You can sign in directly to access the ballot.',
+    });
   }
 
   // Rate-limit resend: minimum 60-second cooldown between verification link dispatches for the same account
@@ -119,6 +169,9 @@ export const requestVerification = asyncHandler(async (req: Request, res: Respon
 
   return ok(res, {
     message: UNIFORM_VERIFICATION_MESSAGE,
+    inRegister: true,
+    status: 'DISPATCHED',
+    maskedEmail: maskEmail(voter.email),
     // Dev helper: only returned in non-production simulation mode for automated testing / CLI workflows
     devToken: !env.isProd && !env.SEND_REAL_EMAILS ? rawToken : undefined,
   });
@@ -455,4 +508,54 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
   await student.save();
 
   ok(res, { message: 'Your password has been reset. You can now sign in.' });
+});
+
+/**
+ * Public helper for voters who forgot which email address they registered with.
+ * Allows searching the accredited roster by Full Name or Roster Serial Number (1–291)
+ * and returns the member's masked email (e.g. abb******@gmail.com) so they can identify their email.
+ */
+export const lookupRosterHint = asyncHandler(async (req: Request, res: Response) => {
+  const { query } = req.body as { query?: string };
+  const q = (query || '').trim();
+
+  if (!q || q.length < 2) {
+    throw ApiError.badRequest('Please enter at least 2 characters of your full name or serial number.');
+  }
+
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const isNumeric = /^\d+$/.test(q);
+
+  const orConditions: Record<string, unknown>[] = [
+    { fullName: new RegExp(escaped, 'i') },
+    { name: new RegExp(escaped, 'i') },
+  ];
+
+  if (isNumeric) {
+    orConditions.push({ serialNumber: q }, { rosterSerialNumber: q });
+  }
+
+  const matches = await Student.find({
+    $or: orConditions,
+    status: { $ne: 'REVOKED' },
+  })
+    .limit(8)
+    .select('fullName email serialNumber rosterSerialNumber programme faculty status isEligible hasRegistered');
+
+  const results = matches.map((m) => ({
+    id: m.id,
+    fullName: m.fullName,
+    serialNumber: m.rosterSerialNumber || m.serialNumber,
+    maskedEmail: maskEmail(m.email),
+    programme: m.programme,
+    faculty: m.faculty,
+    alreadyRegistered: m.hasRegistered,
+    isEligible: m.isEligible && m.status !== 'REVOKED',
+  }));
+
+  ok(res, {
+    query: q,
+    count: results.length,
+    matches: results,
+  });
 });
