@@ -16,7 +16,7 @@ The system lets accredited AMR Club members verify their eligibility with their 
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
 - [MongoDB setup (replica set)](#mongodb-setup-replica-set)
-- [Amazon S3 setup (optional)](#amazon-s3-setup-optional)
+- [Supabase Storage setup](#supabase-storage-setup)
 - [Environment variables](#environment-variables)
 - [Seeding](#seeding)
 - [Importing the student register](#importing-the-student-register)
@@ -53,7 +53,7 @@ The system lets accredited AMR Club members verify their eligibility with their 
 
 **Frontend** — React + Vite + TypeScript, Tailwind CSS, React Router, TanStack Query, React Hook Form + Zod, Recharts, Lucide icons.
 
-**Backend** — Node.js + Express + TypeScript, MongoDB + Mongoose, JWT auth in http-only cookies, bcrypt, AWS SDK v3 (S3) with local-disk fallback, Zod validation, Helmet, CORS, express-rate-limit, cookie-parser, QR code generation.
+**Backend** — Node.js + Express + TypeScript, MongoDB + Mongoose, JWT auth in http-only cookies, bcrypt, Supabase Storage (@supabase/supabase-js), Zod validation, Helmet, CORS, express-rate-limit, cookie-parser, QR code generation.
 
 No gradients, no emojis: the interface uses a deep-green / white / charcoal palette with subtle gold accents for an institutional, trustworthy feel.
 
@@ -69,27 +69,26 @@ amr-buk-evoting/
 │   ├── src/
 │   │   ├── config/         # env, db connection, constants
 │   │   ├── models/         # Mongoose models (see Security architecture)
-│   │   ├── services/       # student, election, vote, results, s3, audit
+│   │   ├── services/       # student, election, vote, results, storage, audit
 │   │   ├── controllers/    # request handlers
 │   │   ├── routes/         # route definitions
 │   │   ├── middleware/     # auth, rbac, validation, rate limiting, uploads
-│   │   ├── validators/     # Zod schemas
-│   │   ├── jobs/           # scheduled election-status sweeper
-│   │   ├── scripts/        # seedAdmin, seedDemo
-│   │   ├── app.ts          # express app
-│   │   └── server.ts       # bootstrap
-│   ├── data/               # sample student CSV
-│   └── .env.example
-└── client/                 # React + Vite frontend
-    ├── src/
-    │   ├── pages/          # public, auth, vote, admin pages
-    │   ├── components/     # UI + feature components
-    │   ├── layouts/        # public + admin shells
-    │   ├── services/       # typed API client (queries.ts)
-    │   ├── store/          # Auth + Toast context
-    │   ├── lib/            # api wrapper, utilities
-    │   └── types/          # shared TypeScript types
-    └── .env.example
+│   │   └── utils/          # tokens, errors, response wrappers, jwt
+│   ├── tsconfig.json
+│   └── package.json
+├── client/                 # React + Vite frontend
+│   ├── src/
+│   │   ├── components/     # shared UI (cards, forms, tables, modals)
+│   │   ├── pages/
+│   │   │   ├── public/     # elections, candidate profiles
+│   │   │   ├── auth/       # student login, email verification, admin login
+│   │   │   ├── vote/       # ballot, review modal, success receipt
+│   │   │   └── admin/      # elections, candidates, students, results, audit
+│   │   ├── context/        # AuthContext (student + admin sessions)
+│   │   ├── services/       # typed API client + TanStack Query hooks
+│   │   └── types/          # shared TypeScript interfaces
+│   └── package.json
+└── docs/                   # audit trails and specification addenda
 ```
 
 ---
@@ -98,7 +97,7 @@ amr-buk-evoting/
 
 - **Node.js 18+** and npm
 - **MongoDB 5+** running as a replica set (see below) — local or MongoDB Atlas
-- *(Optional)* an **AWS S3** bucket for candidate images (the app falls back to local disk if not configured)
+- A **Supabase** project for candidate photo storage (using `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`)
 
 ---
 
@@ -163,39 +162,16 @@ MONGODB_URI=mongodb://127.0.0.1:27017/amr_buk_evoting?replicaSet=rs0
 
 ---
 
-## Amazon S3 setup (optional)
+## Supabase Storage setup
 
-Candidate photos can be stored in S3. If you leave the S3 variables blank (or set `S3_ENABLED=false`), images are stored on local disk under `server/uploads` and served from `/uploads`, so the app runs with zero AWS setup.
+Candidate photos are uploaded and stored in Supabase Storage. The backend mediates all uploads using privileged service-role credentials and serves public URLs for approved candidate images.
 
-To enable S3, set `S3_ENABLED=true` and fill in `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_S3_BUCKET_NAME`.
+Configure the following in `server/.env`:
+- `SUPABASE_URL`: Your Supabase project URL (e.g. `https://<project-ref>.supabase.co`).
+- `SUPABASE_SERVICE_ROLE_KEY`: Service role secret key (never exposed to clients).
+- `SUPABASE_BUCKET_NAME`: Bucket name for candidate photos (default: `candidate-photos`).
 
-**Minimal IAM policy** for the uploader user:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/*"
-    }
-  ]
-}
-```
-
-**Bucket CORS** (so images load in the browser):
-
-```json
-[
-  {
-    "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET"],
-    "AllowedOrigins": ["https://your-frontend-domain.com"],
-    "ExposeHeaders": []
-  }
-]
-```
+The server automatically verifies and initializes the public bucket on startup if it does not already exist.
 
 ---
 
@@ -212,8 +188,9 @@ To enable S3, set `S3_ENABLED=true` and fill in `AWS_REGION`, `AWS_ACCESS_KEY_ID
 | `JWT_EXPIRES_IN` | Token lifetime, e.g. `7d`. |
 | `COOKIE_MAX_AGE_DAYS` | Auth cookie lifetime in days. |
 | `CLIENT_URL` | Frontend origin, for CORS (e.g. `http://localhost:5173`). |
-| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` | S3 configuration (optional). |
-| `S3_ENABLED` | `true` to use S3, otherwise local-disk storage. |
+| `SUPABASE_URL` | Supabase project URL. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Privileged secret key for server-mediated storage operations. |
+| `SUPABASE_BUCKET_NAME` | Storage bucket name for candidate photos (default `candidate-photos`). |
 | `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_PASSWORD` | Credentials created by `seed:admin`. |
 | `RATE_LIMIT_*` | Rate-limit window and per-window caps for general, auth, and vote routes. |
 
@@ -221,9 +198,10 @@ To enable S3, set `S3_ENABLED=true` and fill in `AWS_REGION`, `AWS_ACCESS_KEY_ID
 
 | Variable | Description |
 | --- | --- |
-| `VITE_API_URL` | API base path. Defaults to `/api`; the Vite dev server proxies `/api` and `/uploads` to `localhost:5000`. For a separately-hosted API, set the full URL. |
+| `VITE_API_URL` | API base path. Defaults to `/api`; the Vite dev server proxies `/api` to `localhost:5000`. For a separately-hosted API, set the full URL. |
 
 ---
+
 
 ## Seeding
 
