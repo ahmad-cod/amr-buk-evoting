@@ -12,7 +12,7 @@ import { ELECTION_STATUS, DEFAULT_POSITIONS, CANDIDATE_STATUS } from '../config/
 import { effectiveStatus, votingWindow, resultsVisibility } from '../services/election.service';
 import { recordAudit } from '../services/audit.service';
 import { slugify } from '../utils/tokens';
-import { deleteCandidateImage } from '../services/s3.service';
+import { deleteCandidatePhoto } from '../services/storage.service';
 import { ListQuery } from '../validators/schemas';
 
 /** Serialize an election with derived, server-computed status for clients. */
@@ -181,7 +181,7 @@ export const deleteElection = asyncHandler(async (req: Request, res: Response) =
 
   // Clean up candidate images and dependent records.
   const candidates = await Candidate.find({ electionId: election._id });
-  await Promise.all(candidates.map((c) => deleteCandidateImage(c.s3Key)));
+  await Promise.all(candidates.map((c) => deleteCandidatePhoto(c.storageKey)));
   await Promise.all([
     Candidate.deleteMany({ electionId: election._id }),
     Position.deleteMany({ electionId: election._id }),

@@ -8,7 +8,7 @@ import { Election } from '../models/Election';
 import { Position } from '../models/Position';
 import { CANDIDATE_STATUS } from '../config/constants';
 import { recordAudit } from '../services/audit.service';
-import { uploadCandidatePhoto, deleteCandidatePhoto } from '../services/supabase.service';
+import { uploadCandidatePhoto, deleteCandidatePhoto } from '../services/storage.service';
 
 async function ensureElection(id: string) {
   if (!mongoose.isValidObjectId(id)) throw ApiError.badRequest('Invalid election id');
@@ -83,8 +83,11 @@ export const updateCandidate = asyncHandler(async (req: Request, res: Response) 
 
 export const deleteCandidate = asyncHandler(async (req: Request, res: Response) => {
   const candidate = await findCandidate(req.params.id);
-  if (candidate.s3Key) await deleteCandidatePhoto(candidate.s3Key);
+  const oldStorageKey = candidate.storageKey;
   await candidate.deleteOne();
+  if (oldStorageKey) {
+    await deleteCandidatePhoto(oldStorageKey);
+  }
 
   await recordAudit(req, {
     action: 'candidate.delete',
@@ -123,15 +126,25 @@ export const uploadImage = asyncHandler(async (req: Request, res: Response) => {
   if (!req.file) throw ApiError.badRequest('Please choose an image to upload');
   const candidate = await findCandidate(req.params.id);
 
-  // Replace existing image in Supabase if present
-  if (candidate.s3Key) {
-    await deleteCandidatePhoto(candidate.s3Key);
+  const oldStorageKey = candidate.storageKey;
+
+  // 1. Upload new photo to Supabase Storage
+  const { imageUrl, storageKey } = await uploadCandidatePhoto(req.file, candidate.id);
+
+  // 2. Persist to database; if this fails, clean up the orphaned newly-uploaded object
+  try {
+    candidate.imageUrl = imageUrl;
+    candidate.storageKey = storageKey;
+    await candidate.save();
+  } catch (err) {
+    await deleteCandidatePhoto(storageKey);
+    throw err;
   }
 
-  const { imageUrl, storageKey } = await uploadCandidatePhoto(req.file, candidate.id);
-  candidate.imageUrl = imageUrl;
-  candidate.s3Key = storageKey;
-  await candidate.save();
+  // 3. Only delete old photo if upload and DB persistence succeeded
+  if (oldStorageKey && oldStorageKey !== storageKey) {
+    await deleteCandidatePhoto(oldStorageKey);
+  }
 
   await recordAudit(req, {
     action: 'candidate.upload_image',
