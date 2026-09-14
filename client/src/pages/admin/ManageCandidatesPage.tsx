@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { ImageUploader } from '@/components/ImageUploader';
+import { CandidateAvatar } from '@/components/CandidateAvatar';
 import { CANDIDATE_STATUS_META, initials, positionId } from '@/lib/utils';
 import { ApiError, apiErrorMessage } from '@/lib/api';
 import type { Candidate, CandidateStatus, Position } from '@/types';
@@ -29,12 +30,11 @@ import type { Candidate, CandidateStatus, Position } from '@/types';
 const schema = z.object({
   positionId: z.string().min(1, 'Select a position'),
   fullName: z.string().min(2, 'Full name is required'),
-  registrationNumber: z.string().min(4, 'Registration number is required'),
+  faculty: z.string().optional(),
   department: z.string().optional(),
   level: z.string().optional(),
   campaignSlogan: z.string().optional(),
   manifesto: z.string().optional(),
-  bio: z.string().optional(),
 });
 type Form = z.infer<typeof schema>;
 
@@ -212,10 +212,14 @@ export function ManageCandidatesPage() {
           electionId={id}
           positions={positions}
           candidate={editing}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            setModalOpen(false);
+            setEditing(null);
+          }}
           onSaved={() => {
             invalidate();
             setModalOpen(false);
+            setEditing(null);
           }}
         />
       )}
@@ -254,27 +258,28 @@ function CandidateRow({
   busy: boolean;
 }) {
   const meta = CANDIDATE_STATUS_META[candidate.status as CandidateStatus];
+  const metaDetails = [candidate.faculty, candidate.department, candidate.level]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <div className="card flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
-        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-amr-navy">
-          {candidate.imageUrl ? (
-            <img src={candidate.imageUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white">
-              {initials(candidate.fullName)}
-            </div>
-          )}
-        </div>
+        <CandidateAvatar
+          imageUrl={candidate.imageUrl}
+          fullName={candidate.fullName}
+          variant="avatar"
+          className="h-11 w-11"
+        />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className="font-medium text-charcoal-900">{candidate.fullName}</p>
             <StatusBadge label={meta.label} tone={meta.tone} />
           </div>
-          <p className="text-xs text-charcoal-500">
-            {candidate.registrationNumber && <span className="font-mono mr-1">{candidate.registrationNumber}</span>}
-            {candidate.programme || candidate.department ? `${candidate.programme || candidate.department}` : ''}
-          </p>
+          {metaDetails && <p className="text-xs text-charcoal-500">{metaDetails}</p>}
+          {candidate.campaignSlogan && (
+            <p className="truncate text-xs italic text-gold-700">“{candidate.campaignSlogan}”</p>
+          )}
         </div>
       </div>
 
@@ -330,7 +335,8 @@ function CandidateFormModal({
   const qc = useQueryClient();
   const toast = useToast();
   const isEdit = !!candidate;
-  const [savedCandidate, setSavedCandidate] = useState<Candidate | null>(candidate);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
@@ -341,41 +347,68 @@ function CandidateFormModal({
     defaultValues: {
       positionId: candidate ? positionId(candidate.positionId) : positions[0]?.id || '',
       fullName: candidate?.fullName || '',
-      registrationNumber: candidate?.registrationNumber || '',
+      faculty: candidate?.faculty || '',
       department: candidate?.department || '',
       level: candidate?.level || '',
       campaignSlogan: candidate?.campaignSlogan || '',
       manifesto: candidate?.manifesto || '',
-      bio: candidate?.bio || '',
     },
   });
 
-  const save = useMutation({
-    mutationFn: (values: Form) =>
-      isEdit
-        ? adminApi.updateCandidate(candidate!.id, values)
-        : adminApi.createCandidate(electionId, values),
-    onSuccess: (c) => {
-      setSavedCandidate(c as Candidate);
-      toast.success(isEdit ? 'Candidate updated.' : 'Candidate added.');
-      if (isEdit) onSaved();
-    },
-    onError: (e) => toast.error(apiErrorMessage(e, 'Save failed')),
-  });
+  const onSubmit = async (values: Form) => {
+    setIsSubmitting(true);
+    try {
+      let saved: Candidate;
+      if (isEdit) {
+        saved = (await adminApi.updateCandidate(candidate!.id, values)) as Candidate;
+      } else {
+        saved = (await adminApi.createCandidate(electionId, values)) as Candidate;
+      }
 
-  const upload = useMutation({
-    mutationFn: (file: File) => adminApi.uploadCandidateImage(savedCandidate!.id, file),
-    onSuccess: (res) => {
-      setSavedCandidate((prev) => (prev ? { ...prev, imageUrl: res.imageUrl } : prev));
+      if (photoFile && saved?.id) {
+        try {
+          await adminApi.uploadCandidateImage(saved.id, photoFile);
+        } catch (uploadErr) {
+          toast.error(apiErrorMessage(uploadErr, 'Candidate saved, but photo upload failed.'));
+          onSaved();
+          return;
+        }
+      }
+
       qc.invalidateQueries({ queryKey: ['candidates', electionId] });
-      toast.success('Photo uploaded.');
-    },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Upload failed'),
-  });
+      toast.success(isEdit ? 'Candidate updated successfully.' : 'Candidate added successfully.');
+      onSaved();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to save candidate. Please check the entered data.'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
-    <Modal open onClose={onClose} title={isEdit ? 'Edit candidate' : 'Add candidate'} size="lg">
-      <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-4">
+    <Modal
+      open
+      onClose={onClose}
+      title={isEdit ? 'Edit candidate' : 'Add candidate'}
+      size="lg"
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </button>
+          <button type="submit" form="candidate-form" className="btn-primary" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <LoadingSpinner size={16} className="text-white" />
+            ) : isEdit ? (
+              'Save changes'
+            ) : (
+              'Save candidate'
+            )}
+          </button>
+        </>
+      }
+    >
+      <form id="candidate-form" onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label htmlFor="cpos" className="label">
@@ -391,33 +424,53 @@ function CandidateFormModal({
             {errors.positionId && <p className="field-error">{errors.positionId.message}</p>}
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label htmlFor="cname" className="label">
               Full name
             </label>
-            <input id="cname" className="input" {...register('fullName')} />
+            <input
+              id="cname"
+              className="input"
+              placeholder="e.g. Fatima Aliyu Bello"
+              {...register('fullName')}
+            />
             {errors.fullName && <p className="field-error">{errors.fullName.message}</p>}
           </div>
+
           <div>
-            <label htmlFor="creg" className="label">
-              Registration number
+            <label htmlFor="cfaculty" className="label">
+              Faculty
             </label>
-            <input id="creg" className="input uppercase" {...register('registrationNumber')} />
-            {errors.registrationNumber && (
-              <p className="field-error">{errors.registrationNumber.message}</p>
-            )}
+            <input
+              id="cfaculty"
+              className="input"
+              placeholder="e.g. College of Health Sciences"
+              {...register('faculty')}
+            />
           </div>
+
           <div>
             <label htmlFor="cdept" className="label">
               Department
             </label>
-            <input id="cdept" className="input" {...register('department')} />
+            <input
+              id="cdept"
+              className="input"
+              placeholder="e.g. Medicine and Surgery"
+              {...register('department')}
+            />
           </div>
-          <div>
+
+          <div className="sm:col-span-2">
             <label htmlFor="clevel" className="label">
               Level
             </label>
-            <input id="clevel" className="input" placeholder="e.g. Level 3" {...register('level')} />
+            <input
+              id="clevel"
+              className="input"
+              placeholder="e.g. 400 Level"
+              {...register('level')}
+            />
           </div>
         </div>
 
@@ -425,45 +478,34 @@ function CandidateFormModal({
           <label htmlFor="cslogan" className="label">
             Campaign slogan
           </label>
-          <input id="cslogan" className="input" {...register('campaignSlogan')} />
+          <input
+            id="cslogan"
+            className="input"
+            placeholder="e.g. Advancing Antimicrobial Stewardship"
+            {...register('campaignSlogan')}
+          />
         </div>
+
         <div>
           <label htmlFor="cmanifesto" className="label">
             Manifesto
           </label>
-          <textarea id="cmanifesto" rows={4} className="input" {...register('manifesto')} />
+          <textarea
+            id="cmanifesto"
+            rows={4}
+            className="input"
+            placeholder="Enter candidate's election manifesto and priorities..."
+            {...register('manifesto')}
+          />
         </div>
 
-        {savedCandidate ? (
-          <div className="rounded-md border border-charcoal-200 bg-charcoal-50 p-4">
-            <p className="mb-2 text-sm font-medium text-charcoal-700">Candidate photo</p>
-            <ImageUploader
-              currentUrl={savedCandidate.imageUrl}
-              onUpload={(file) => upload.mutate(file)}
-              uploading={upload.isPending}
-            />
-          </div>
-        ) : (
-          <p className="rounded-md border border-charcoal-200 bg-charcoal-50 p-3 text-xs text-charcoal-500">
-            Save the candidate first, then you can upload a photo.
-          </p>
-        )}
-
-        <div className="flex justify-end gap-3 border-t border-charcoal-100 pt-4">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            {savedCandidate ? 'Done' : 'Cancel'}
-          </button>
-          <button type="submit" className="btn-primary" disabled={save.isPending}>
-            {save.isPending ? (
-              <LoadingSpinner size={16} className="text-white" />
-            ) : isEdit ? (
-              'Save changes'
-            ) : savedCandidate ? (
-              'Update details'
-            ) : (
-              'Save candidate'
-            )}
-          </button>
+        <div className="rounded-md border border-charcoal-200 bg-charcoal-50 p-4">
+          <p className="mb-2 text-sm font-medium text-charcoal-700">Candidate photo</p>
+          <ImageUploader
+            currentUrl={candidate?.imageUrl}
+            onUpload={(file) => setPhotoFile(file)}
+            uploading={isSubmitting}
+          />
         </div>
       </form>
     </Modal>

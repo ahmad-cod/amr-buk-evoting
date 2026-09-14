@@ -228,8 +228,22 @@ function CreateAdminModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
   });
 
   return (
-    <Modal open onClose={onClose} title="Add administrator">
-      <form onSubmit={handleSubmit((v) => create.mutate(v))} noValidate className="space-y-4">
+    <Modal
+      open
+      onClose={onClose}
+      title="Add administrator"
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" form="create-admin-form" className="btn-primary" disabled={create.isPending}>
+            {create.isPending ? <LoadingSpinner size={16} className="text-white" /> : 'Create'}
+          </button>
+        </>
+      }
+    >
+      <form id="create-admin-form" onSubmit={handleSubmit((v) => create.mutate(v))} noValidate className="space-y-4">
         <div>
           <label htmlFor="ausername" className="label">
             Username
@@ -266,14 +280,6 @@ function CreateAdminModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
             <option value="super_admin">Super Admin</option>
           </select>
         </div>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn-primary" disabled={create.isPending}>
-            {create.isPending ? <LoadingSpinner size={16} className="text-white" /> : 'Create'}
-          </button>
-        </div>
       </form>
     </Modal>
   );
@@ -307,7 +313,26 @@ function EditAdminModal({
   });
 
   return (
-    <Modal open onClose={onClose} title={`Edit ${admin.username}`}>
+    <Modal
+      open
+      onClose={onClose}
+      title={`Edit ${admin.username}`}
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => update.mutate()}
+            disabled={update.isPending || (password.length > 0 && password.length < 8)}
+          >
+            {update.isPending ? <LoadingSpinner size={16} className="text-white" /> : 'Save changes'}
+          </button>
+        </>
+      }
+    >
       <div className="space-y-4">
         <div>
           <label htmlFor="erole" className="label">
@@ -349,19 +374,6 @@ function EditAdminModal({
           {password.length > 0 && password.length < 8 && (
             <p className="field-error">Password must be at least 8 characters.</p>
           )}
-        </div>
-
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button
-            className="btn-primary"
-            onClick={() => update.mutate()}
-            disabled={update.isPending || (password.length > 0 && password.length < 8)}
-          >
-            {update.isPending ? <LoadingSpinner size={16} className="text-white" /> : 'Save changes'}
-          </button>
         </div>
       </div>
     </Modal>

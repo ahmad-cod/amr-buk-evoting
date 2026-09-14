@@ -114,7 +114,7 @@ export function ElectionFormPage({ mode }: { mode: 'create' | 'edit' }) {
   if (isEdit && isLoading) return <FullPageSpinner />;
 
   const toggles: Array<{ name: keyof Form; label: string; help: string }> = [
-    { name: 'registrationEnabled', label: 'Allow voter registration', help: 'Students can register accounts for this election.' },
+    { name: 'registrationEnabled', label: 'Allow voter registration', help: 'Accredited members can register accounts for this election.' },
     { name: 'votingEnabled', label: 'Allow voting', help: 'Master switch — voting is possible when the election is active.' },
     { name: 'liveResultsEnabled', label: 'Show live results', help: 'Publish provisional results while voting is open.' },
     { name: 'requireCandidateApproval', label: 'Require candidate approval', help: 'Candidates must be approved before appearing on the ballot.' },

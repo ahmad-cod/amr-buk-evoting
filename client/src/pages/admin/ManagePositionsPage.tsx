@@ -235,8 +235,22 @@ function PositionFormModal({
   });
 
   return (
-    <Modal open onClose={onClose} title={isEdit ? 'Edit position' : 'Add position'}>
-      <form onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-4">
+    <Modal
+      open
+      onClose={onClose}
+      title={isEdit ? 'Edit position' : 'Add position'}
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" form="position-form" className="btn-primary" disabled={save.isPending}>
+            {save.isPending ? <LoadingSpinner size={16} className="text-white" /> : 'Save'}
+          </button>
+        </>
+      }
+    >
+      <form id="position-form" onSubmit={handleSubmit((v) => save.mutate(v))} noValidate className="space-y-4">
         <div>
           <label htmlFor="ptitle" className="label">
             Title
@@ -266,14 +280,6 @@ function PositionFormModal({
             </label>
             <input id="pcand" type="number" min={1} className="input" {...register('maxCandidates')} />
           </div>
-        </div>
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn-primary" disabled={save.isPending}>
-            {save.isPending ? <LoadingSpinner size={16} className="text-white" /> : 'Save'}
-          </button>
         </div>
       </form>
     </Modal>

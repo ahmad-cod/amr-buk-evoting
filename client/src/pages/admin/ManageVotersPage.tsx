@@ -9,13 +9,6 @@ import { Pagination } from '@/components/ui/Pagination';
 import { ApiError } from '@/lib/api';
 import type { Student } from '@/types';
 
-const DEPARTMENTS = [
-  'Computer Science',
-  'Cyber Security',
-  'Information Technology',
-  'Software Engineering',
-];
-
 export function ManageVotersPage() {
   const { id = '' } = useParams();
   const qc = useQueryClient();
@@ -164,7 +157,7 @@ export function ManageVotersPage() {
           rows={data?.data ?? []}
           loading={isLoading}
           rowKey={(s) => s.id}
-          empty={{ icon: Users, title: 'No students found', description: 'Try adjusting your search or filter.' }}
+          empty={{ icon: Users, title: 'No voters found', description: 'Try adjusting your search.' }}
         />
       </div>
 
