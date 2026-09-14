@@ -11,6 +11,7 @@
     "seed:admin": "tsx src/scripts/seedAdmin.ts",
     "seed:demo": "tsx src/scripts/seedDemo.ts",
     "verify": "tsx src/scripts/verifyE2E.ts",
+    "verify:roster": "tsx src/scripts/verifyRosterPipeline.ts",
     "verify:photos": "tsx src/scripts/verifyPhase20.ts",
     "typecheck": "tsc --noEmit"
   },

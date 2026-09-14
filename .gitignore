@@ -19,6 +19,16 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
+# Confidential election rosters and uploads (NEVER commit voter data or PDFs)
+*.pdf
+*.xlsx
+*roster*
+*voters*
+server/temp/
+temp/
+scratch/
+
 # Editor
 .vscode/
 .idea/
+
