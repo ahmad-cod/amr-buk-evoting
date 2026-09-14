@@ -28,14 +28,28 @@ router.delete('/admins/:id', requireSuperAdmin, admins.deleteAdmin);
 
 // Students / voters
 router.get('/students', validate(listQuerySchema, 'query'), students.listStudents);
+router.get('/voters', validate(listQuerySchema, 'query'), students.listStudents);
 router.get('/students/stats', students.studentStats);
+router.get('/voters/stats', students.studentStats);
 router.get('/students/import-history', students.importHistory);
+router.get('/voters/import-history', students.importHistory);
 router.post('/students/import/preview', requireSuperAdmin, uploadCsv, students.previewImport);
+router.post('/voters/import/preview', requireSuperAdmin, uploadCsv, students.previewImport);
 router.post('/students/import', requireSuperAdmin, uploadCsv, students.runImport);
+router.post('/voters/import', requireSuperAdmin, uploadCsv, students.runImport);
 router.patch(
   '/students/:id/eligibility',
   validate(eligibilityToggleSchema),
   students.toggleEligibility,
 );
+router.patch(
+  '/voters/:id/eligibility',
+  validate(eligibilityToggleSchema),
+  students.toggleEligibility,
+);
+router.post('/students/send-links', students.sendAllVerificationLinks);
+router.post('/voters/send-links', students.sendAllVerificationLinks);
+router.post('/students/:id/resend', students.resendVoterVerification);
+router.post('/voters/:id/resend', students.resendVoterVerification);
 
 export default router;
