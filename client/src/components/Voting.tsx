@@ -99,7 +99,22 @@ export function VoteConfirmationModal({
   totalPositions: number;
 }) {
   return (
-    <Modal open={open} onClose={onClose} size="sm" title="Confirm your vote">
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title="Confirm your vote"
+      footer={
+        <>
+          <button className="btn-secondary" onClick={onClose} disabled={submitting}>
+            Review again
+          </button>
+          <button className="btn-primary" onClick={onConfirm} disabled={submitting}>
+            {submitting ? <LoadingSpinner size={16} className="text-white" /> : 'Submit my vote'}
+          </button>
+        </>
+      }
+    >
       <div className="flex gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amr-pale-blue">
           <ShieldCheck size={20} className="text-amr-navy" />
@@ -119,14 +134,6 @@ export function VoteConfirmationModal({
             Your ballot will be recorded anonymously. No one will be able to see how you voted.
           </p>
         </div>
-      </div>
-      <div className="mt-6 flex justify-end gap-3">
-        <button className="btn-secondary" onClick={onClose} disabled={submitting}>
-          Review again
-        </button>
-        <button className="btn-primary" onClick={onConfirm} disabled={submitting}>
-          {submitting ? <LoadingSpinner size={16} className="text-white" /> : 'Submit my vote'}
-        </button>
       </div>
     </Modal>
   );

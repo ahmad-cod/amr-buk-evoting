@@ -37,11 +37,11 @@ export function ImageUploader({
   return (
     <div>
       <div className="flex items-center gap-4">
-        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-charcoal-200 bg-charcoal-100">
+        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-amr-light-blue/40 bg-amr-pale-blue">
           {shown ? (
             <img src={shown} alt="Candidate" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-charcoal-300">
+            <div className="flex h-full w-full items-center justify-center text-amr-navy/50">
               <ImagePlus size={28} />
             </div>
           )}

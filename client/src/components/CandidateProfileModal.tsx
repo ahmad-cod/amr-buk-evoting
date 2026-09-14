@@ -16,7 +16,17 @@ export function CandidateProfileModal({
 }) {
   if (!candidate) return null;
   return (
-    <Modal open={open} onClose={onClose} size="lg" title="Candidate profile">
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="lg"
+      title="Candidate profile"
+      footer={
+        <button type="button" className="btn-secondary" onClick={onClose}>
+          Close
+        </button>
+      }
+    >
       <div className="flex flex-col gap-5 sm:flex-row">
         <div className="w-full shrink-0 sm:w-40">
           <div className="aspect-square overflow-hidden rounded-lg bg-charcoal-100">
@@ -42,6 +52,11 @@ export function CandidateProfileModal({
           )}
 
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-charcoal-600">
+            {candidate.faculty && (
+              <span className="inline-flex items-center gap-1.5">
+                <Building2 size={15} className="text-charcoal-400" /> {candidate.faculty}
+              </span>
+            )}
             {candidate.department && (
               <span className="inline-flex items-center gap-1.5">
                 <Building2 size={15} className="text-charcoal-400" /> {candidate.department}
