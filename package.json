@@ -1,0 +1,21 @@
+{
+  "name": "nacos-buk-evoting",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AMR Club BUK E-Voting Platform — secure online elections for Antimicrobial Resistance (AMR) Club, Bayero University Kano (AMR IEC)",
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "seed:admin": "npm run seed:admin --prefix server",
+    "seed:demo": "npm run seed:demo --prefix server",
+    "verify": "npm run verify --prefix server",
+    "typecheck": "npm run typecheck --prefix server && npm run build --prefix client"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.1.1"
+  }
+}

@@ -250,8 +250,7 @@ Only students present in the imported register may create accounts and vote.
 ```
 Full Name, Registration Number, Email Address, Department, Level
 ```
-
-Registration numbers follow the faculty format, e.g. `CST/22/IFT/00785`, where the third segment is the department code (IFT, COM, CBS, SWE, …). A sample file is provided at `server/data/students-sample.csv`.
+A sample file is provided at `server/data/students-sample.csv`.
 
 ---
 
