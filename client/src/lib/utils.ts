@@ -64,6 +64,8 @@ export function initials(name: string): string {
     .join('');
 }
 
-export function positionId(pid: string | { _id: string }): string {
-  return typeof pid === 'string' ? pid : pid._id;
+export function positionId(pid: string | { id?: string; _id?: string } | null | undefined): string {
+  if (!pid) return '';
+  if (typeof pid === 'string') return pid;
+  return pid.id || pid._id || '';
 }

@@ -75,12 +75,11 @@ export interface Position {
 export interface Candidate {
   id: string;
   electionId: string;
-  positionId: string | { _id: string; title: string };
+  positionId: string | { id?: string; _id?: string; title: string };
   fullName: string;
-  registrationNumber?: string;
+  faculty?: string;
   department?: string;
   programme?: string;
-  faculty?: string;
   level?: string;
   bio?: string;
   manifesto?: string;
@@ -100,6 +99,7 @@ export interface BallotPosition {
   candidates: Array<{
     id: string;
     fullName: string;
+    faculty?: string;
     department?: string;
     level?: string;
     campaignSlogan?: string;
