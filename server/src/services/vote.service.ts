@@ -56,7 +56,23 @@ export async function castVote(input: CastVoteInput): Promise<CastVoteResult> {
 
   const student = await Student.findById(input.studentId);
   if (!student) throw ApiError.unauthorized('Account not found');
-  if (!student.isEligible) throw ApiError.forbidden('Your voter eligibility is inactive.');
+  if (!student.isEligible || student.status === 'REVOKED') {
+    throw ApiError.forbidden('Your voter eligibility is inactive or revoked.');
+  }
+
+  // Election scoping check: ensure voter is accredited for this specific election
+  if (student.electionId && String(student.electionId) !== String(election._id)) {
+    throw ApiError.forbidden('You are not accredited to vote in this election.');
+  }
+
+  // Programme / faculty eligibility check (remediated from audit Finding 2.1)
+  if (
+    election.eligibleDepartments &&
+    election.eligibleDepartments.length > 0 &&
+    !election.eligibleDepartments.includes(student.programme || student.faculty || '')
+  ) {
+    throw ApiError.forbidden('Your programme/faculty is not eligible to vote in this election.');
+  }
 
   // Fast pre-check (the unique index is the real guard).
   const existing = await VoteReceipt.findOne({
@@ -90,7 +106,12 @@ export async function castVote(input: CastVoteInput): Promise<CastVoteResult> {
     throw ApiError.badRequest('Your ballot is empty');
   }
 
-  const ballotDocs: { electionId: Types.ObjectId; positionId: Types.ObjectId; candidateId: Types.ObjectId }[] = [];
+  const ballotDocs: {
+    _id: Types.ObjectId;
+    electionId: Types.ObjectId;
+    positionId: Types.ObjectId;
+    candidateId: Types.ObjectId;
+  }[] = [];
   const seenPositions = new Set<string>();
 
   for (const sel of input.selections) {
@@ -126,10 +147,12 @@ export async function castVote(input: CastVoteInput): Promise<CastVoteResult> {
       if (!candidate) {
         throw ApiError.badRequest('A selected candidate is not valid for this position');
       }
+      // Cryptographically random ObjectId to prevent BSON counter correlation (remediated from audit Finding 3.1)
       ballotDocs.push({
-        electionId: election._id,
-        positionId: position._id,
-        candidateId: candidate._id,
+        _id: new Types.ObjectId(crypto.randomBytes(12)),
+        electionId: election._id as Types.ObjectId,
+        positionId: position._id as Types.ObjectId,
+        candidateId: candidate._id as Types.ObjectId,
       });
     }
   }

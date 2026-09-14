@@ -26,13 +26,23 @@ export function clearDevVerificationEmails(): void {
 /**
  * Builds the responsive, branded HTML email template for AMR Club BUK voter verification.
  */
-function buildVerificationEmailHtml(fullName: string, verificationLink: string, expiresMinutes: number): string {
+function buildVerificationEmailHtml(
+  fullName: string,
+  verificationLink: string,
+  expiresMinutes: number,
+  electionTitle = 'AMR Club BUK General Election',
+): string {
+  const expiryText =
+    expiresMinutes >= 60
+      ? `${Math.round(expiresMinutes / 60)} hour(s)`
+      : `${expiresMinutes} minutes`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify your AMR BUK Election Account</title>
+  <title>Official Voter Verification — ${electionTitle}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8FAFC; margin: 0; padding: 0; color: #1E293B; }
     .container { max-width: 560px; margin: 30px auto; background-color: #FFFFFF; border-radius: 8px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
@@ -59,16 +69,16 @@ function buildVerificationEmailHtml(fullName: string, verificationLink: string, 
     <div class="content">
       <div class="greeting">Hello ${fullName},</div>
       <div class="message">
-        You are receiving this email because your email address is on the official accredited voter register for the <strong>Antimicrobial Resistance (AMR) Club, Bayero University Kano General Election</strong>.
+        You are receiving this official verification email because your email address is on the approved accredited voter register for the <strong>${electionTitle}</strong> (AMR Club, Bayero University Kano).
       </div>
       <div class="message">
-        To complete your voter account registration and create your secure password, please click the button below:
+        To verify your email ownership and access your secure, authenticated voting session, please click the button below:
       </div>
       <div class="button-container">
-        <a href="${verificationLink}" class="button" target="_blank">Verify Email &amp; Set Password</a>
+        <a href="${verificationLink}" class="button" target="_blank">Verify Email &amp; Access Ballot</a>
       </div>
       <div class="warning-box">
-        <strong>Important:</strong> This verification link is single-use and will expire in <strong>${expiresMinutes} minutes</strong>.
+        <strong>Important Security Notice:</strong> This verification link is single-use and will expire in <strong>${expiryText}</strong>. It cannot be shared or used more than once. Voting is anonymous and protected by cryptographic ballot receipts.
       </div>
       <div class="fallback">
         If the button above does not work, copy and paste this link into your browser:<br>
@@ -76,8 +86,8 @@ function buildVerificationEmailHtml(fullName: string, verificationLink: string, 
       </div>
     </div>
     <div class="footer">
-      This is an automated message from the AMR Independent Electoral Committee (AMR IEC).<br>
-      If you did not request this email, please disregard it. Nobody can access your account without this link.
+      This is an official automated transmission from the Antimicrobial Resistance Independent Electoral Committee (AMR IEC), Bayero University Kano.<br>
+      If you did not expect this message or are not an AMR Club member, please disregard it. Nobody can access your vote without this single-use link.
     </div>
   </div>
 </body>
@@ -91,6 +101,7 @@ export async function sendVerificationEmail(
   to: string,
   fullName: string,
   rawToken: string,
+  electionTitle = 'AMR Club BUK General Election',
 ): Promise<{ success: boolean; simulated: boolean; error?: string }> {
   const verificationLink = `${env.CLIENT_URL}/verify?token=${rawToken}`;
   const expiresMinutes = env.VERIFICATION_TOKEN_EXPIRES_MINUTES || 30;
@@ -107,7 +118,7 @@ export async function sendVerificationEmail(
     devEmails.push(record);
 
     logger.info(`[DEV EMAIL] Verification Link: ${verificationLink}`);
-    logger.info(`[DEV EMAIL] Target Voter: ${fullName} <${to}>`);
+    logger.info(`[DEV EMAIL] Target Voter: ${fullName} <${to}> (${electionTitle})`);
     return { success: true, simulated: true };
   }
 
@@ -118,7 +129,7 @@ export async function sendVerificationEmail(
   }
 
   try {
-    const htmlContent = buildVerificationEmailHtml(fullName, verificationLink, expiresMinutes);
+    const htmlContent = buildVerificationEmailHtml(fullName, verificationLink, expiresMinutes, electionTitle);
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -128,7 +139,7 @@ export async function sendVerificationEmail(
       body: JSON.stringify({
         from: env.EMAIL_FROM,
         to: [to],
-        subject: 'Verify your AMR BUK Election Account',
+        subject: `Official Voter Verification — ${electionTitle}`,
         html: htmlContent,
       }),
     });

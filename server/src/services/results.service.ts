@@ -141,6 +141,14 @@ export async function computeResults(election: ElectionDoc): Promise<ElectionRes
 
 /** Eligible voter pool: eligible voters in the election's eligible programmes/faculties. */
 export async function countEligibleVoters(election: ElectionDoc): Promise<number> {
+  const electionId = election._id as Types.ObjectId;
+  const scopedCount = await Student.countDocuments({
+    electionId,
+    status: { $ne: 'REVOKED' },
+    isEligible: { $ne: false },
+  });
+  if (scopedCount > 0) return scopedCount;
+
   const filter: Record<string, unknown> = { isEligible: true };
   if (election.eligibleDepartments && election.eligibleDepartments.length > 0) {
     filter.$or = [
