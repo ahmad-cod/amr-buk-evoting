@@ -95,6 +95,7 @@ async function runVerification() {
       assert(!!voter.programme, 'Voter has programme recorded', voter.programme);
       assert(!!voter.faculty, 'Voter has faculty recorded', voter.faculty);
       // Ensure voter starts in unregistered state for verification flow tests
+      voter.status = 'PENDING';
       voter.hasRegistered = false;
       voter.password = undefined;
       voter.verificationTokenHash = undefined;
