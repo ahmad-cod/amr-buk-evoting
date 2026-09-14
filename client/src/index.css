@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-charcoal-50 text-charcoal-900 font-sans;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+  /* Visible keyboard focus everywhere for accessibility. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-amr-navy ring-offset-2 ring-offset-white;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium
+      transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2
+      focus-visible:ring-amr-navy focus-visible:ring-offset-2;
+  }
+  .btn-primary {
+    @apply btn bg-amr-navy text-white hover:bg-navy-700 active:bg-navy-800;
+  }
+  .btn-secondary {
+    @apply btn border border-charcoal-200 bg-white text-charcoal-800 hover:bg-amr-pale-blue;
+  }
+  .btn-danger {
+    @apply btn bg-amr-red text-white hover:bg-red-700;
+  }
+  .btn-ghost {
+    @apply btn text-charcoal-700 hover:bg-amr-pale-blue;
+  }
+  .card {
+    @apply rounded-lg border border-charcoal-200 bg-white shadow-card;
+  }
+  .input {
+    @apply w-full rounded-md border border-charcoal-300 bg-white px-3 py-2.5 text-sm text-charcoal-900
+      placeholder:text-charcoal-400 focus:border-amr-navy focus:outline-none focus:ring-1
+      focus:ring-amr-navy disabled:bg-charcoal-50;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-charcoal-700;
+  }
+  .field-error {
+    @apply mt-1.5 text-xs font-medium text-amr-red;
+  }
+  .skeleton {
+    @apply rounded bg-charcoal-100;
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
