@@ -12,7 +12,6 @@ export interface BallotDoc extends Document {
   electionId: Types.ObjectId;
   positionId: Types.ObjectId;
   candidateId: Types.ObjectId;
-  createdAt: Date;
 }
 
 const ballotSchema = new Schema<BallotDoc>(
@@ -20,7 +19,6 @@ const ballotSchema = new Schema<BallotDoc>(
     electionId: { type: Schema.Types.ObjectId, ref: 'Election', required: true, index: true },
     positionId: { type: Schema.Types.ObjectId, ref: 'Position', required: true, index: true },
     candidateId: { type: Schema.Types.ObjectId, ref: 'Candidate', required: true, index: true },
-    createdAt: { type: Date, default: Date.now },
   },
   { timestamps: false },
 );

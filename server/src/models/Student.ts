@@ -1,1 +1,1 @@
-export { Voter, VoterDoc, Voter as Student, VoterDoc as StudentDoc } from './Voter';
+export { Voter, VoterDoc, Voter as Student, VoterDoc as StudentDoc, VoterStatus } from './Voter';
