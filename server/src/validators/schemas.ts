@@ -153,10 +153,9 @@ export const seedPositionsSchema = z.object({
 export const createCandidateSchema = z.object({
   positionId: objectId,
   fullName: z.string().min(2).max(160),
-  registrationNumber: z.string().optional(),
+  faculty: z.string().optional(),
   department: z.string().optional(),
   programme: z.string().optional(),
-  faculty: z.string().optional(),
   level: z.string().optional(),
   bio: z.string().max(3000).optional(),
   manifesto: z.string().max(8000).optional(),

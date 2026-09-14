@@ -1,5 +1,5 @@
 {
-  "name": "nacos-buk-evoting-server",
+  "name": "amr-buk-evoting-server",
   "version": "1.0.0",
   "description": "Secure e-voting backend for AMR Club BUK — Antimicrobial Resistance Independent Electoral Committee (AMR IEC)",
   "main": "dist/server.js",
@@ -11,6 +11,7 @@
     "seed:admin": "tsx src/scripts/seedAdmin.ts",
     "seed:demo": "tsx src/scripts/seedDemo.ts",
     "verify": "tsx src/scripts/verifyE2E.ts",
+    "verify:photos": "tsx src/scripts/verifyPhase20.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": ["evoting", "election", "nacos", "buk"],

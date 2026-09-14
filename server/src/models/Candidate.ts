@@ -6,10 +6,9 @@ export interface CandidateDoc extends Document {
   electionId: Types.ObjectId;
   positionId: Types.ObjectId;
   fullName: string;
-  registrationNumber?: string;
+  faculty?: string;
   department?: string;
   programme?: string;
-  faculty?: string;
   level?: string;
   bio?: string;
   manifesto?: string;
@@ -28,10 +27,9 @@ const candidateSchema = new Schema<CandidateDoc>(
     electionId: { type: Schema.Types.ObjectId, ref: 'Election', required: true, index: true },
     positionId: { type: Schema.Types.ObjectId, ref: 'Position', required: true, index: true },
     fullName: { type: String, required: true, trim: true, maxlength: 160 },
-    registrationNumber: { type: String, trim: true },
+    faculty: { type: String, trim: true },
     department: { type: String, trim: true },
     programme: { type: String, trim: true },
-    faculty: { type: String, trim: true },
     level: { type: String, trim: true },
     bio: { type: String, trim: true },
     manifesto: { type: String, trim: true },
@@ -57,3 +55,8 @@ candidateSchema.index(
 );
 
 export const Candidate = model<CandidateDoc>('Candidate', candidateSchema);
+
+// Ensure legacy registration number index is safely dropped in existing collections
+Candidate.collection.dropIndex('electionId_1_positionId_1_registrationNumber_1').catch(() => {
+  // Ignore error if index does not exist
+});

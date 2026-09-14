@@ -3,8 +3,6 @@ import dns from 'node:dns';
 import { env } from './env';
 import { logger } from '../utils/logger';
 
-dns.setServers(['1.1.1.1', '1.0.0.1']);
-
 let transactionsSupported = false;
 
 export const supportsTransactions = (): boolean => transactionsSupported;
@@ -17,7 +15,7 @@ export async function connectDatabase(): Promise<typeof mongoose> {
   mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'));
 
   await mongoose.connect(env.MONGODB_URI, {
-    dbName: 'nacos-buk-election',
+    dbName: 'amr-buk-election',
     serverSelectionTimeoutMS: 30000,
     connectTimeoutMS: 30000,
     socketTimeoutMS: 45000,

@@ -3,6 +3,7 @@ import { connectDatabase, disconnectDatabase } from './config/db';
 import { env } from './config/env';
 import { logger } from './utils/logger';
 import { startElectionStatusJob, stopElectionStatusJob } from './jobs/electionStatus.job';
+import { ensureCandidateBucket } from './services/supabase.service';
 
 // Import models so their indexes are registered/built on startup.
 import './models/Admin';
@@ -17,6 +18,7 @@ import './models/ImportHistory';
 
 async function bootstrap(): Promise<void> {
   await connectDatabase();
+  await ensureCandidateBucket();
 
   const app = createApp();
   const server = app.listen(env.PORT, () => {

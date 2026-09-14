@@ -8,7 +8,10 @@ import { asyncHandler } from '../utils/asyncHandler';
 /** Requires a valid admin session. Also confirms the admin is still active. */
 export const requireAdmin = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
-    const token = req.cookies?.[ADMIN_COOKIE];
+    const bearer = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7)
+      : undefined;
+    const token = req.cookies?.[ADMIN_COOKIE] || bearer || req.cookies?.[STUDENT_COOKIE];
     if (!token) throw ApiError.unauthorized('Admin authentication required');
 
     let payload;
@@ -17,7 +20,7 @@ export const requireAdmin = asyncHandler(
     } catch {
       throw ApiError.unauthorized('Session expired. Please sign in again.');
     }
-    if (payload.principal !== 'admin') throw ApiError.unauthorized();
+    if (payload.principal !== 'admin') throw ApiError.forbidden('Admin privileges required');
 
     const admin = await Admin.findById(payload.sub);
     if (!admin || !admin.isActive) {

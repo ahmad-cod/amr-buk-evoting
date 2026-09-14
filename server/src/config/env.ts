@@ -34,8 +34,14 @@ const envSchema = z.object({
   // Email verification (Resend)
   RESEND_API_KEY: z.string().optional().default(''),
   EMAIL_FROM: z.string().default('AMR IEC Elections <elections@contact.usetamreen.com>'),
-  VERIFICATION_TOKEN_EXPIRES_MINUTES: z.coerce.number().default(15),
+  VERIFICATION_TOKEN_EXPIRES_MINUTES: z.coerce.number().default(30),
   SEND_REAL_EMAILS: boolean.default('false'),
+
+  // Supabase Storage (Phase 20 - candidate photos)
+  SUPABASE_PROJECT_URL: z.string().url().default('https://nrtpaukiruadndjjwhuj.supabase.co'),
+  SUPABASE_PUBLISHABLE_KEY: z.string().optional().default(''),
+  SUPABASE_SECRET_KEY: z.string().optional().default(''),
+  SUPABASE_STORAGE_BUCKET: z.string().default('candidate-photos'),
 
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
   RATE_LIMIT_MAX_GENERAL: z.coerce.number().default(300),
@@ -65,6 +71,10 @@ export const env = {
     !!raw.AWS_ACCESS_KEY_ID &&
     !!raw.AWS_SECRET_ACCESS_KEY &&
     !!raw.AWS_S3_BUCKET_NAME,
+  supabaseStorageUsable:
+    !!raw.SUPABASE_PROJECT_URL &&
+    !!raw.SUPABASE_SECRET_KEY &&
+    !!raw.SUPABASE_STORAGE_BUCKET,
 };
 
 export type Env = typeof env;

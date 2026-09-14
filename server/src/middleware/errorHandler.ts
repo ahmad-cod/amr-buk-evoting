@@ -48,6 +48,16 @@ export function errorHandler(
       code = 'INVALID_ID';
       messageText = 'Invalid identifier';
     }
+    // Multer file upload errors
+    else if (e.name === 'MulterError') {
+      statusCode = 400;
+      code = (e.code as string) || 'UPLOAD_ERROR';
+      if (e.code === 'LIMIT_FILE_SIZE') {
+        messageText = 'File is too large. Maximum allowed size is 3MB.';
+      } else {
+        messageText = (e.message as string) || 'File upload error';
+      }
+    }
   }
 
   if (statusCode >= 500) {

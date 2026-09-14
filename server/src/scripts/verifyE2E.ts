@@ -99,6 +99,7 @@ async function runVerification() {
       voter.password = undefined;
       voter.verificationTokenHash = undefined;
       voter.verificationTokenExpires = undefined;
+      voter.verificationTokenSentAt = undefined;
       await voter.save();
     }
 
@@ -170,7 +171,7 @@ async function runVerification() {
     assert(dbVoterAfterReq!.verificationTokenHash === expectedHash, 'Database stores correct SHA-256 token hash');
 
     const expiryMinutes = (dbVoterAfterReq!.verificationTokenExpires!.getTime() - Date.now()) / (60 * 1000);
-    assert(expiryMinutes > 14 && expiryMinutes <= 15.1, 'Token expiration set to exactly 15 minutes', `~${Math.round(expiryMinutes)} mins`);
+    assert(expiryMinutes > 29 && expiryMinutes <= 30.1, 'Token expiration set to 30 minutes', `~${Math.round(expiryMinutes)} mins`);
 
     // 3e. 60-second cooldown prevents spamming
     const spamRes = await fetch(`${baseUrl}/auth/student/request-verification`, {
