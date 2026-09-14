@@ -14,7 +14,7 @@ export interface CandidateDoc extends Document {
   manifesto?: string;
   campaignSlogan?: string;
   imageUrl?: string;
-  s3Key?: string;
+  storageKey?: string;
   status: CandidateStatus;
   displayOrder: number;
   createdBy?: Types.ObjectId;
@@ -35,7 +35,7 @@ const candidateSchema = new Schema<CandidateDoc>(
     manifesto: { type: String, trim: true },
     campaignSlogan: { type: String, trim: true, maxlength: 200 },
     imageUrl: { type: String },
-    s3Key: { type: String },
+    storageKey: { type: String },
     status: {
       type: String,
       enum: Object.values(CANDIDATE_STATUS),

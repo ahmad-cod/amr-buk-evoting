@@ -12,7 +12,7 @@ import { Candidate } from '../models/Candidate';
 import { Ballot } from '../models/Ballot';
 import { signToken } from '../utils/jwt';
 import { ROLES, CANDIDATE_STATUS } from '../config/constants';
-import { ensureCandidateBucket } from '../services/supabase.service';
+import { ensureCandidateBucket } from '../services/storage.service';
 
 interface TestResult {
   name: string;
@@ -138,13 +138,41 @@ async function runPhase20Verification() {
     assert(!!admin, 'Super admin found for test', admin?.username);
     const adminToken = signToken({ sub: admin!.id, role: admin!.role, principal: 'admin' });
 
-    const voter = await Voter.findOne({ isEligible: true });
+    let voter = await Voter.findOne({ isEligible: true });
+    if (!voter) {
+      voter = await Voter.create({
+        fullName: 'Test Verification Voter',
+        email: `test_voter_${Date.now()}@buk.edu.ng`,
+        isEligible: true,
+        isVerified: true,
+      });
+    }
     assert(!!voter, 'Sample voter found for non-admin token test', voter?.email);
     const voterToken = signToken({ sub: voter!.id, principal: 'student' });
 
-    // Pick an existing election and position
-    const election = await Election.findOne();
-    const position = await Position.findOne({ electionId: election?._id });
+    // Pick or create an election and position
+    let election = await Election.findOne();
+    if (!election) {
+      election = await Election.create({
+        title: 'Phase 20 Test Election',
+        slug: `photo-election-${Date.now()}`,
+        startDateTime: new Date(Date.now() - 3600000),
+        endDateTime: new Date(Date.now() + 86400000),
+        status: 'active',
+        createdBy: admin!._id,
+      });
+    }
+    let position = await Position.findOne({ electionId: election._id });
+    if (!position) {
+      position = await Position.create({
+        electionId: election._id,
+        title: 'President',
+        displayOrder: 1,
+        maxCandidates: 10,
+        maxVotesPerVoter: 1,
+        isActive: true,
+      });
+    }
     assert(!!election && !!position, 'Found active election and position for candidate creation');
 
     // Create a disposable candidate for tests
@@ -159,6 +187,7 @@ async function runPhase20Verification() {
     });
     testCandidateId = dummyCandidate.id;
     assert(!!testCandidateId, 'Disposable candidate created for photo lifecycle tests', testCandidateId);
+
 
     // -------------------------------------------------------------
     // Test 4: Unauthenticated Request Returns 401
@@ -259,7 +288,7 @@ async function runPhase20Verification() {
     const uploadJson = (await uploadRes.json()) as any;
     const uploadedData = uploadJson.data || uploadJson;
     firstPublicUrl = uploadedData.imageUrl || uploadedData.candidate?.imageUrl;
-    firstUploadedKey = uploadedData.candidate?.s3Key || uploadedData.s3Key;
+    firstUploadedKey = uploadedData.candidate?.storageKey || uploadedData.storageKey;
 
     assert(
       !firstUploadedKey.includes('passwd') && !firstUploadedKey.includes('..'),
@@ -313,19 +342,19 @@ async function runPhase20Verification() {
     const replaceJson = (await replaceRes.json()) as any;
     const replaceData = replaceJson.data || replaceJson;
     secondPublicUrl = replaceData.imageUrl || replaceData.candidate?.imageUrl;
-    secondUploadedKey = replaceData.candidate?.s3Key || replaceData.s3Key;
+    secondUploadedKey = replaceData.candidate?.storageKey || replaceData.storageKey;
 
     assert(secondUploadedKey !== firstUploadedKey, 'New distinct storage key assigned for replacement');
     assert(secondUploadedKey.endsWith('.png'), 'Replacement PNG correctly uses .png extension');
 
-    // Verify candidate in DB has new URL and s3Key
+    // Verify candidate in DB has new URL and storageKey
     const updatedCandidate = await Candidate.findById(testCandidateId);
     assert(
       updatedCandidate?.imageUrl === secondPublicUrl,
       'Candidate document in DB updated to second public URL',
     );
     assert(
-      updatedCandidate?.s3Key === secondUploadedKey,
+      updatedCandidate?.storageKey === secondUploadedKey,
       'Candidate document in DB updated to second storage key',
     );
 
@@ -419,14 +448,25 @@ async function runPhase20Verification() {
     // Test 13: Candidates Without Photos Fallback Verification
     // -------------------------------------------------------------
     console.log('\n[13] Fallback Avatar for Candidates Without Photos:');
-    const noPhotoCandidates = await Candidate.find({
+    let noPhotoCandidates = await Candidate.find({
       $or: [{ imageUrl: { $exists: false } }, { imageUrl: null }, { imageUrl: '' }],
     });
+    if (noPhotoCandidates.length === 0) {
+      const fallbackCandidate = await Candidate.create({
+        electionId: election!._id,
+        positionId: position!._id,
+        fullName: `Fallback Avatar Candidate ${Date.now()}`,
+        status: CANDIDATE_STATUS.APPROVED,
+        displayOrder: 100,
+      });
+      noPhotoCandidates = [fallbackCandidate];
+    }
     assert(
       noPhotoCandidates.length > 0,
       'Candidates without photos exist in the database and rely on fallback avatar',
       `Count: ${noPhotoCandidates.length}`,
     );
+
   } catch (err: any) {
     console.error('Test execution error:', err);
     assert(false, 'Verification suite run completed without unexpected error', err.message);

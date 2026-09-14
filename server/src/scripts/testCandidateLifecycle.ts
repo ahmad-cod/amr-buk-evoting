@@ -125,13 +125,13 @@ async function runTests() {
     console.log('\n[Test 3] Candidate Update (faculty, manifesto, imageUrl)');
     created.faculty = 'Faculty of Basic Medical Sciences';
     created.manifesto = 'Updated AMR manifesto for clinical awareness';
-    created.imageUrl = '/uploads/candidates/test-photo.webp';
+    created.imageUrl = 'https://nrtpaukiruadndjjwhuj.supabase.co/storage/v1/object/public/candidate-photos/candidates/test-photo.webp';
     await created.save();
 
     const updated = await Candidate.findById(created._id);
     assert(updated?.faculty === 'Faculty of Basic Medical Sciences', 'Candidate faculty updated successfully');
     assert(updated?.manifesto === 'Updated AMR manifesto for clinical awareness', 'Candidate manifesto updated successfully');
-    assert(updated?.imageUrl === '/uploads/candidates/test-photo.webp', 'Candidate imageUrl updated successfully');
+    assert(updated?.imageUrl === 'https://nrtpaukiruadndjjwhuj.supabase.co/storage/v1/object/public/candidate-photos/candidates/test-photo.webp', 'Candidate imageUrl updated successfully');
 
     // 6. Verify Mongoose Serialization & Populated positionId Resolution
     console.log('\n[Test 4] Populated positionId serialization & helper resolution');

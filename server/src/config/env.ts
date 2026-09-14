@@ -22,12 +22,6 @@ const envSchema = z.object({
 
   CLIENT_URL: z.string().default('http://localhost:5173'),
 
-  AWS_REGION: z.string().optional().default('us-east-1'),
-  AWS_ACCESS_KEY_ID: z.string().optional().default(''),
-  AWS_SECRET_ACCESS_KEY: z.string().optional().default(''),
-  AWS_S3_BUCKET_NAME: z.string().optional().default(''),
-  S3_ENABLED: boolean,
-
   SUPER_ADMIN_USERNAME: z.string().default('amradmin'),
   SUPER_ADMIN_PASSWORD: z.string().default('amrelection2026'),
 
@@ -37,10 +31,13 @@ const envSchema = z.object({
   VERIFICATION_TOKEN_EXPIRES_MINUTES: z.coerce.number().default(30),
   SEND_REAL_EMAILS: boolean.default('false'),
 
-  // Supabase Storage (Phase 20 - candidate photos)
-  SUPABASE_PROJECT_URL: z.string().url().default('https://nrtpaukiruadndjjwhuj.supabase.co'),
-  SUPABASE_PUBLISHABLE_KEY: z.string().optional().default(''),
+  // Supabase Storage (candidate photos)
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_PROJECT_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(''),
   SUPABASE_SECRET_KEY: z.string().optional().default(''),
+  SUPABASE_PUBLISHABLE_KEY: z.string().optional().default(''),
+  SUPABASE_BUCKET_NAME: z.string().default('candidate-photos'),
   SUPABASE_STORAGE_BUCKET: z.string().default('candidate-photos'),
 
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
@@ -61,20 +58,21 @@ if (!parsed.success) {
 
 const raw = parsed.data;
 
+const supabaseUrl = raw.SUPABASE_URL || raw.SUPABASE_PROJECT_URL || '';
+const supabaseKey = (raw.SUPABASE_SERVICE_ROLE_KEY || raw.SUPABASE_SECRET_KEY || '').trim();
+const supabaseBucket = raw.SUPABASE_BUCKET_NAME || raw.SUPABASE_STORAGE_BUCKET || 'candidate-photos';
+
 export const env = {
   ...raw,
   isProd: raw.NODE_ENV === 'production',
   port: Number(raw.PORT),
-  // S3 is only truly usable when explicitly enabled AND credentials/bucket exist.
-  s3Usable:
-    raw.S3_ENABLED &&
-    !!raw.AWS_ACCESS_KEY_ID &&
-    !!raw.AWS_SECRET_ACCESS_KEY &&
-    !!raw.AWS_S3_BUCKET_NAME,
-  supabaseStorageUsable:
-    !!raw.SUPABASE_PROJECT_URL &&
-    !!raw.SUPABASE_SECRET_KEY &&
-    !!raw.SUPABASE_STORAGE_BUCKET,
+  SUPABASE_URL: supabaseUrl,
+  SUPABASE_PROJECT_URL: supabaseUrl,
+  SUPABASE_SERVICE_ROLE_KEY: supabaseKey,
+  SUPABASE_SECRET_KEY: supabaseKey,
+  SUPABASE_BUCKET_NAME: supabaseBucket,
+  SUPABASE_STORAGE_BUCKET: supabaseBucket,
+  supabaseStorageUsable: Boolean(supabaseUrl && supabaseKey),
 };
 
 export type Env = typeof env;

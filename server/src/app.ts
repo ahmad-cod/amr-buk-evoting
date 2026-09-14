@@ -4,13 +4,11 @@ import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import path from 'path';
 import { env } from './config/env';
 import { generalLimiter } from './middleware/rateLimit';
 import { requestContext } from './middleware/requestContext';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import api from './routes';
-import { localUploadDir, storageMode } from './services/s3.service';
 
 export function createApp(): Application {
   const app = express();
@@ -39,11 +37,6 @@ export function createApp(): Application {
   // Global soft rate limit.
   app.use(generalLimiter);
 
-  // Serve locally-stored candidate images when S3 is disabled.
-  if (storageMode === 'local') {
-    app.use('/uploads', express.static(localUploadDir));
-  }
-
   app.use('/api', api);
 
   app.use(notFoundHandler);
@@ -51,5 +44,3 @@ export function createApp(): Application {
 
   return app;
 }
-
-export const uploadsPath = path.resolve(localUploadDir);

@@ -7,7 +7,7 @@ export interface ElectionDoc extends Document {
   slug: string;
   description?: string;
   bannerImage?: string;
-  bannerS3Key?: string;
+  bannerStorageKey?: string;
   startDateTime: Date;
   endDateTime: Date;
   status: ElectionStatus;
@@ -32,7 +32,7 @@ const electionSchema = new Schema<ElectionDoc>(
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     description: { type: String, trim: true },
     bannerImage: { type: String },
-    bannerS3Key: { type: String },
+    bannerStorageKey: { type: String },
     startDateTime: { type: Date, required: true },
     endDateTime: { type: Date, required: true },
     status: {

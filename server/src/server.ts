@@ -3,7 +3,7 @@ import { connectDatabase, disconnectDatabase } from './config/db';
 import { env } from './config/env';
 import { logger } from './utils/logger';
 import { startElectionStatusJob, stopElectionStatusJob } from './jobs/electionStatus.job';
-import { ensureCandidateBucket } from './services/supabase.service';
+import { ensureCandidateBucket } from './services/storage.service';
 
 // Import models so their indexes are registered/built on startup.
 import './models/Admin';
