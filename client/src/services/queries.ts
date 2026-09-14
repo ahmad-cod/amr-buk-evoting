@@ -29,10 +29,16 @@ export const qk = {
   positions: (electionId: string) => ['positions', electionId] as const,
   candidates: (electionId: string, status?: string) => ['candidates', electionId, status] as const,
   adminResults: (id: string) => ['admin-results', id] as const,
-  students: (page?: number, search?: string, dept?: string) =>
-    ['students', page, search, dept] as const,
-  studentStats: () => ['student-stats'] as const,
-  importHistory: () => ['import-history'] as const,
+  students: (
+    page?: number,
+    search?: string,
+    dept?: string,
+    electionId?: string,
+    status?: string,
+    unmask?: boolean,
+  ) => ['students', page, search, dept, electionId, status, unmask] as const,
+  studentStats: (electionId?: string) => ['student-stats', electionId] as const,
+  importHistory: (electionId?: string) => ['import-history', electionId] as const,
   admins: () => ['admins'] as const,
   auditLogs: (page?: number, search?: string) => ['audit-logs', page, search] as const,
 };
@@ -126,23 +132,48 @@ export const adminApi = {
   adminResults: (id: string) => api.get<ResultsResponse>(`/admin/elections/${id}/results`),
   exportResultsUrl: (id: string) => `/api/admin/elections/${id}/export-results`,
 
-  listStudents: (page = 1, search?: string, department?: string) =>
-    api.get<Paginated<Student>>(`/admin/students${q({ page, search, department, limit: 20 })}`),
-  studentStats: () => api.get<{ total: number; eligible: number; registered: number }>(
-    '/admin/students/stats',
-  ),
+  listStudents: (
+    page = 1,
+    search?: string,
+    department?: string,
+    electionId?: string,
+    status?: string,
+    unmask = false,
+  ) =>
+    api.get<Paginated<Student>>(
+      `/admin/students${q({ page, search, department, electionId, status, unmask: unmask ? 'true' : undefined, limit: 20 })}`,
+    ),
+  studentStats: (electionId?: string) =>
+    api.get<{ total: number; eligible: number; pending: number; verified: number; revoked: number; registered: number }>(
+      `/admin/students/stats${q({ electionId })}`,
+    ),
   toggleEligibility: (id: string, isEligible: boolean) =>
     api.patch<Student>(`/admin/students/${id}/eligibility`, { isEligible }),
-  importHistory: () => api.get<ImportOutcome[]>('/admin/students/import-history'),
-  previewImport: (file: File) => {
+  sendVerificationLinks: (electionId?: string) =>
+    api.post<{ message: string; sent: number; failed: number; totalPending: number }>('/admin/students/send-links', {
+      electionId,
+    }),
+  resendVerification: (id: string) =>
+    api.post<{ message: string; maskedEmail: string }>(`/admin/students/${id}/resend`, {}),
+  importHistory: (electionId?: string) =>
+    api.get<ImportOutcome[]>(`/admin/students/import-history${q({ electionId })}`),
+  previewImport: (file: File, electionId?: string) => {
     const form = new FormData();
     form.append('file', file);
+    if (electionId) form.append('electionId', electionId);
     return api.postForm<ImportPreview>('/admin/students/import/preview', form);
   },
-  runImport: (file: File, activateImmediately: boolean) => {
+  runImport: (
+    file: File,
+    activateImmediately: boolean,
+    electionId?: string,
+    confirmedRowNumbers?: number[],
+  ) => {
     const form = new FormData();
     form.append('file', file);
     form.append('activateImmediately', String(activateImmediately));
+    if (electionId) form.append('electionId', electionId);
+    if (confirmedRowNumbers) form.append('confirmedRowNumbers', JSON.stringify(confirmedRowNumbers));
     return api.postForm<ImportOutcome>('/admin/students/import', form);
   },
 

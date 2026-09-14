@@ -24,6 +24,7 @@ export interface StudentUser {
   id: string;
   fullName: string;
   email: string;
+  maskedEmail?: string;
   serialNumber?: string;
   registrationNumber?: string;
   programme?: string;
@@ -32,10 +33,14 @@ export interface StudentUser {
   department?: string;
   level?: string;
   isEligible?: boolean;
+  status?: 'PENDING' | 'VERIFIED' | 'REVOKED';
+  electionId?: string;
 }
 
 export interface Student extends StudentUser {
   hasRegistered?: boolean;
+  verifiedAt?: string;
+  verificationRevokedAt?: string;
   createdAt?: string;
 }
 
@@ -189,24 +194,53 @@ export interface AuditLog {
   createdAt: string;
 }
 
+export interface ImportConflict {
+  type: string;
+  email?: string;
+  serialNumber?: string;
+  records: Array<{ row: number; serialNumber?: string; fullName?: string; email?: string }>;
+  actionRequired: string;
+}
+
 export interface ImportOutcome {
   historyId: string;
   totalRows: number;
+  populatedRows?: number;
+  blankRows?: number;
+  validEmails?: number;
+  invalidEmails?: number;
+  duplicateEmails?: number;
+  duplicateSerials?: number;
+  importable?: number;
+  requiringReview?: number;
   inserted: number;
   updated: number;
   skipped: number;
   invalid: number;
-  errors: Array<{ row: number; identifier?: string; registrationNumber?: string; reason: string }>;
-  filename?: string;
+  errors: Array<{ row: number; identifier?: string; serialNumber?: string; registrationNumber?: string; reason: string }>;
+  conflicts?: ImportConflict[];
+  fileName?: string;
   createdAt?: string;
-  importedBy?: string;
+  importedBy?: string | { username: string };
 }
 
 export interface ImportPreview {
+  totalRows: number;
+  populatedRows: number;
+  blankRows: number;
+  validEmails: number;
+  invalidEmails: number;
+  duplicateEmails: number;
+  duplicateSerials: number;
+  importableRecords: number;
+  recordsRequiringReview: number;
   headers: string[];
   mapping: Record<string, string | undefined>;
   sampleRows: Record<string, string>[];
-  totalRows: number;
+  conflicts: ImportConflict[];
+  errors: Array<{ row: number; identifier?: string; serialNumber?: string; reason: string }>;
+  importableRows?: Array<any>;
+  rowsRequiringReview?: Array<any>;
 }
 
 export interface PageMeta {
