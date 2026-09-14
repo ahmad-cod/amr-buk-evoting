@@ -14,26 +14,49 @@ export const dashboardStats = asyncHandler(async (_req: Request, res: Response) 
   const [
     totalElections,
     elections,
-    totalStudents,
-    eligibleStudents,
-    totalVotes,
     totalCandidates,
     pendingCandidates,
     recentAudit,
   ] = await Promise.all([
     Election.countDocuments(),
     Election.find().select('title slug status startDateTime endDateTime'),
-    Student.countDocuments(),
-    Student.countDocuments({ isEligible: true }),
-    VoteReceipt.countDocuments(),
     Candidate.countDocuments(),
     Candidate.countDocuments({ status: CANDIDATE_STATUS.PENDING }),
     AuditLog.find().sort({ createdAt: -1 }).limit(8).populate('adminId', 'username'),
   ]);
 
-  const activeElections = elections.filter(
+  const activeElectionList = elections.filter(
     (e) => effectiveStatus(e) === ELECTION_STATUS.ACTIVE,
-  ).length;
+  );
+  const activeElections = activeElectionList.length;
+
+  // Identify target election for scoped metrics: prioritize active election, fallback to first election
+  const targetElection = activeElectionList[0] || elections[0];
+  const electionScope = targetElection ? { electionId: targetElection._id } : null;
+
+  // Check if target election has accredited roster voters
+  const scopedVotersCount = electionScope
+    ? await Student.countDocuments(electionScope)
+    : 0;
+
+  const voterFilter =
+    scopedVotersCount > 0 && electionScope
+      ? electionScope
+      : {};
+
+  const [totalStudents, eligibleStudents, totalVotes] = await Promise.all([
+    scopedVotersCount > 0
+      ? scopedVotersCount
+      : Student.countDocuments({ status: { $ne: 'REVOKED' } }),
+    Student.countDocuments({
+      ...voterFilter,
+      status: { $ne: 'REVOKED' },
+      isEligible: { $ne: false },
+    }),
+    targetElection
+      ? VoteReceipt.countDocuments({ electionId: targetElection._id })
+      : VoteReceipt.countDocuments(),
+  ]);
 
   const turnoutPercentage = eligibleStudents
     ? Math.round((totalVotes / eligibleStudents) * 1000) / 10

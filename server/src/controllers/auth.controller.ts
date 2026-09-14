@@ -19,6 +19,9 @@ import { verifyEligibility } from '../services/student.service';
 import { sendVerificationEmail } from '../services/email.service';
 import { env } from '../config/env';
 import { normalizeEmail, normalizeRegNumber } from '../utils/regNumber';
+import { maskEmail } from '../utils/maskEmail';
+import { Election } from '../models/Election';
+import { VoteReceipt } from '../models/VoteReceipt';
 
 // ---------- Admin ----------
 export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
@@ -123,7 +126,7 @@ export const requestVerification = asyncHandler(async (req: Request, res: Respon
 
 /**
  * Step 2: Validate the single-use token from the voter's email link.
- * Consumes the token immediately and issues a short-lived pre-auth registration session token.
+ * Atomically consumes the token, transitions status to VERIFIED, and issues an authenticated voter session.
  */
 export const verifyEmailToken = asyncHandler(async (req: Request, res: Response) => {
   const { token } = req.body as { token: string };
@@ -133,45 +136,91 @@ export const verifyEmailToken = asyncHandler(async (req: Request, res: Response)
 
   const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
 
-  const voter = await Student.findOne({
-    verificationTokenHash: tokenHash,
-    verificationTokenExpires: { $gt: new Date() },
-  }).select('+verificationTokenHash +verificationTokenExpires');
+  // Atomic lookup and consumption: prevents concurrent double-verification race conditions
+  const voter = await Student.findOneAndUpdate(
+    {
+      verificationTokenHash: tokenHash,
+      verificationTokenExpires: { $gt: new Date() },
+      status: { $ne: 'REVOKED' },
+      isEligible: true,
+    },
+    {
+      $set: {
+        status: 'VERIFIED',
+        isVerified: true,
+        hasRegistered: true,
+        verifiedAt: new Date(),
+      },
+      $unset: {
+        verificationTokenHash: 1,
+        verificationTokenExpires: 1,
+        verificationTokenExpiresAt: 1,
+      },
+    },
+    { new: true },
+  );
 
   if (!voter) {
+    // Check if token was already used or revoked for a clearer message
+    const priorVoter = await Student.findOne({
+      $or: [{ verificationTokenHash: tokenHash }, { status: 'REVOKED' }],
+    });
+    if (priorVoter?.status === 'REVOKED') {
+      throw ApiError.forbidden('Your voter eligibility is currently inactive. Please contact the AMR IEC.');
+    }
     throw ApiError.badRequest(
       'This verification link is invalid, expired, or has already been used. Please request a new verification link.',
     );
   }
 
-  if (voter.hasRegistered) {
-    throw ApiError.conflict('An account has already been registered for this voter. Please sign in.');
-  }
+  // Issue authenticated voter session cookie (amr_voter_token)
+  const sessionToken = signToken({ sub: voter.id, principal: 'student' });
+  res.cookie(STUDENT_COOKIE, sessionToken, cookieOptions());
 
-  if (!voter.isEligible) {
-    throw ApiError.forbidden('Your voter eligibility is currently inactive. Please contact the AMR IEC.');
-  }
-
-  // Single-use guarantee: consume token immediately to prevent reuse or replay
-  voter.verificationTokenHash = undefined;
-  voter.verificationTokenExpires = undefined;
-  await voter.save();
-
-  // Issue a 15-minute scoped registration session token bound to this specific voter ID & email
+  // Issue optional 15-minute scoped registration session token for legacy password setup if desired
   const registrationSessionToken = signRegistrationToken(voter.id, voter.email);
 
+  // Look up election slug if voter is election-scoped
+  let election: { id: string; title: string; slug: string } | undefined;
+  if (voter.electionId) {
+    const elec = await Election.findById(voter.electionId);
+    if (elec) {
+      election = { id: elec.id, title: elec.title, slug: elec.slug };
+    }
+  }
+
+  let hasVoted = false;
+  if (voter.electionId) {
+    const receipt = await VoteReceipt.findOne({ electionId: voter.electionId, studentId: voter._id });
+    hasVoted = !!receipt;
+  }
+
+  await recordAudit(req, {
+    action: 'voter.verified',
+    resourceType: 'Voter',
+    resourceId: voter.id,
+    details: { email: maskEmail(voter.email), electionId: voter.electionId },
+  });
+
   ok(res, {
+    message: 'Email verification successful. Your voting session is active.',
+    sessionToken,
     registrationSessionToken,
+    hasVoted,
+    hasPassword: !!voter.password,
+    election,
     voter: {
       id: voter.id,
       fullName: voter.fullName,
       email: voter.email,
-      serialNumber: voter.serialNumber,
+      maskedEmail: maskEmail(voter.email),
+      serialNumber: voter.rosterSerialNumber || voter.serialNumber,
       registrationNumber: voter.registrationNumber,
       programme: voter.programme,
       faculty: voter.faculty,
       gender: voter.gender,
       department: voter.programme || voter.faculty,
+      status: voter.status,
     },
   });
 });
@@ -199,12 +248,12 @@ export const completeRegistration = asyncHandler(async (req: Request, res: Respo
     );
   }
 
-  const voter = await Student.findById(payload.voterId);
+  const voter = await Student.findById(payload.voterId).select('+password');
   if (!voter) {
     throw ApiError.unauthorized('Voter account not found.');
   }
 
-  if (voter.hasRegistered) {
+  if (voter.password) {
     throw ApiError.conflict('An account already exists for this voter. Please sign in.');
   }
 
@@ -279,8 +328,8 @@ export const studentLogin = asyncHandler(async (req: Request, res: Response) => 
   if (!student || !student.hasRegistered || !(await student.comparePassword(password))) {
     throw ApiError.unauthorized('Invalid credentials');
   }
-  if (!student.isEligible) {
-    throw ApiError.forbidden('Your voter eligibility is inactive. Please contact the AMR IEC.');
+  if (!student.isEligible || student.status === 'REVOKED') {
+    throw ApiError.forbidden('Your voter eligibility is inactive or revoked. Please contact the AMR IEC.');
   }
 
   const token = signToken({ sub: student.id, principal: 'student' });
@@ -291,11 +340,13 @@ export const studentLogin = asyncHandler(async (req: Request, res: Response) => 
       id: student.id,
       fullName: student.fullName,
       email: student.email,
-      serialNumber: student.serialNumber,
+      maskedEmail: maskEmail(student.email),
+      serialNumber: student.rosterSerialNumber || student.serialNumber,
       registrationNumber: student.registrationNumber,
       programme: student.programme,
       faculty: student.faculty,
       department: student.programme || student.faculty,
+      status: student.status,
     },
   });
 });
@@ -313,13 +364,15 @@ export const studentMe = asyncHandler(async (req: Request, res: Response) => {
       id: student.id,
       fullName: student.fullName,
       email: student.email,
-      serialNumber: student.serialNumber,
+      maskedEmail: maskEmail(student.email),
+      serialNumber: student.rosterSerialNumber || student.serialNumber,
       registrationNumber: student.registrationNumber,
       programme: student.programme,
       faculty: student.faculty,
       gender: student.gender,
       department: student.programme || student.faculty,
       isEligible: student.isEligible,
+      status: student.status,
     },
   });
 });
@@ -338,8 +391,8 @@ export const checkEligibility = asyncHandler(async (req: Request, res: Response)
     alreadyRegistered: student.hasRegistered,
     student: {
       fullName: student.fullName,
-      email: student.email,
-      serialNumber: student.serialNumber,
+      email: maskEmail(student.email),
+      serialNumber: student.rosterSerialNumber || student.serialNumber,
       registrationNumber: student.registrationNumber,
       programme: student.programme,
       faculty: student.faculty,
