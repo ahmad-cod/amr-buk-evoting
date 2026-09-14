@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Proxy API calls to the Vercel backend. The browser only ever talks
+# to the Netlify origin, which keeps auth cookies first-party.
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR-BACKEND.vercel.app/api/:splat"
+  status = 200
+  force = true
+
+# SPA fallback — must come AFTER the /api rule.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
