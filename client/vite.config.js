@@ -9,10 +9,8 @@ export default defineConfig({
     server: {
         port: 5173,
         proxy: {
-            // Proxy API + uploaded images to the backend during development so
-            // cookies are same-origin and no CORS gymnastics are needed.
+            // Proxy API to the backend during development so cookies are same-origin.
             '/api': { target: 'http://localhost:5000', changeOrigin: true },
-            '/uploads': { target: 'http://localhost:5000', changeOrigin: true },
         },
     },
 });
