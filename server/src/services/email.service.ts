@@ -93,7 +93,7 @@ export async function sendVerificationEmail(
   rawToken: string,
 ): Promise<{ success: boolean; simulated: boolean; error?: string }> {
   const verificationLink = `${env.CLIENT_URL}/verify?token=${rawToken}`;
-  const expiresMinutes = env.VERIFICATION_TOKEN_EXPIRES_MINUTES || 15;
+  const expiresMinutes = env.VERIFICATION_TOKEN_EXPIRES_MINUTES || 30;
 
   // 1. Non-production / Simulated Mode
   if (!env.isProd && !env.SEND_REAL_EMAILS) {
