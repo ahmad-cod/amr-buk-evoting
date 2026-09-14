@@ -62,7 +62,7 @@ No gradients, no emojis: the interface uses a deep-green / white / charcoal pale
 ## Repository layout
 
 ```
-nacos-buk-evoting/
+amr-buk-evoting/
 ├── package.json            # root convenience scripts (run both apps)
 ├── README.md
 ├── server/                 # Express + TypeScript API
@@ -156,7 +156,7 @@ mongosh --eval "rs.initiate()"
 Then use:
 
 ```
-MONGODB_URI=mongodb://127.0.0.1:27017/nacos_buk_evoting?replicaSet=rs0
+MONGODB_URI=mongodb://127.0.0.1:27017/amr_buk_evoting?replicaSet=rs0
 ```
 
 > The vote service detects whether transactions are available and, if a standalone server is used, falls back to a receipt-first write with an idempotency guard. Running a replica set is strongly recommended for the strongest one-vote guarantee.
