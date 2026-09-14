@@ -2,7 +2,7 @@
 
 A secure, transparent online election platform for the **Antimicrobial Resistance (AMR) Club, Bayero University Kano**, administered by the AMR Independent Electoral Committee (**AMR IEC**).
 
-Re-architected and branded for the multidisciplinary membership of AMR Club BUK by **Ahmad Aroyehun** ([ahmadaroyehun.netlify.app](https://ahmadaroyehun.netlify.app)), Adapted from the base platform designed by **Anas Yakubu** ([anasyakubu.netlify.app](https://anasyakubu.netlify.app)).
+Re-architected and branded for the multidisciplinary membership of AMR Club BUK by **[Ahmad Aroyehun](https://www.linkedin.com/in/ahmadaroyehun)** · Based on original design by **[Anas Yakubu](https://anasyakubu.netlify.app)**.
 
 The system lets accredited AMR Club members verify their eligibility with their official email address, set up their voter account, and cast a secret ballot once per election, while guaranteeing absolute **ballot privacy**: votes are recorded in separate collections from voter identities, making it architecturally impossible for anyone — including administrators — to trace a ballot back to an individual.
 
@@ -370,4 +370,4 @@ DELETE /admin/admins/:id                     # super admin
 
 ---
 
-*Administered by AMR IEC — free, fair, and credible elections for the Antimicrobial Resistance (AMR) Club, Bayero University Kano. Adapted from the NACOS BUK platform by Anas Yakubu.*
+*Administered by AMR IEC — free, fair, and credible elections for the Antimicrobial Resistance (AMR) Club, Bayero University Kano. Re-architected for AMR Club BUK by [Ahmad Aroyehun](https://www.linkedin.com/in/ahmadaroyehun) · Based on original design by [Anas Yakubu](https://anasyakubu.netlify.app).*
