@@ -40,7 +40,27 @@ export function Footer() {
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-charcoal-100 pt-6 text-xs text-charcoal-400 sm:flex-row">
-          <p>© {year} AMR Club BUK · Administered by AMR IEC. Adapted from NACOS BUK platform by <Link className="font-semibold text-charcoal-700 hover:text-navy-900" to="https://anasyakubu.netlify.app">Anas Yakubu</Link>.</p>
+          <p>
+            © {year} AMR Club BUK · Administered by AMR IEC · Re-architected for AMR Club BUK by{' '}
+            <a
+              href="https://www.linkedin.com/in/ahmadaroyehun"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-charcoal-700 hover:text-navy-900 underline underline-offset-2"
+            >
+              Ahmad Aroyehun
+            </a>{' '}
+            · Based on original design by{' '}
+            <a
+              href="https://anasyakubu.netlify.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-charcoal-700 hover:text-navy-900 underline underline-offset-2"
+            >
+              Anas Yakubu
+            </a>
+            .
+          </p>
           <Link to="/admin/login" className="hover:text-charcoal-700">Committee sign in</Link>
         </div>
       </div>
