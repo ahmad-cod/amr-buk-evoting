@@ -195,6 +195,7 @@ function PositionSection({
             <CandidateCard
               key={c.id}
               fullName={c.fullName}
+              faculty={c.faculty}
               department={c.department}
               level={c.level}
               campaignSlogan={c.campaignSlogan}

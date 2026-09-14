@@ -4,6 +4,7 @@ import { ArrowLeft, Building2, GraduationCap, ScrollText, User, Info } from 'luc
 import { publicApi, qk } from '@/services/queries';
 import { FullPageSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { CandidateAvatar } from '@/components/CandidateAvatar';
 import { initials, positionId } from '@/lib/utils';
 
 export function CandidateProfilePage() {
@@ -50,17 +51,11 @@ export function CandidateProfilePage() {
 
       <div className="mt-6 grid gap-8 md:grid-cols-[240px_1fr]">
         <div>
-          <div className="aspect-square overflow-hidden rounded-lg border border-charcoal-200 bg-charcoal-100">
-            {candidate.imageUrl ? (
-              <img src={candidate.imageUrl} alt={candidate.fullName} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-green-600">
-                <span className="font-display text-5xl font-bold text-white">
-                  {initials(candidate.fullName)}
-                </span>
-              </div>
-            )}
-          </div>
+          <CandidateAvatar
+            imageUrl={candidate.imageUrl}
+            fullName={candidate.fullName}
+            variant="profile"
+          />
         </div>
 
         <div>
@@ -73,6 +68,11 @@ export function CandidateProfilePage() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-charcoal-600">
+            {candidate.faculty && (
+              <span className="inline-flex items-center gap-1.5">
+                <Building2 size={16} className="text-charcoal-400" /> {candidate.faculty}
+              </span>
+            )}
             {candidate.department && (
               <span className="inline-flex items-center gap-1.5">
                 <Building2 size={16} className="text-charcoal-400" /> {candidate.department}
