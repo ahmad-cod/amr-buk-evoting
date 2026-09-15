@@ -35,7 +35,10 @@ export const requireAdmin = asyncHandler(
 /** Requires a valid student session. */
 export const requireStudent = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
-    const token = req.cookies?.[STUDENT_COOKIE];
+    const bearer = req.headers.authorization?.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7)
+      : undefined;
+    const token = req.cookies?.[STUDENT_COOKIE] || bearer;
     if (!token) throw ApiError.unauthorized('Please sign in to continue');
 
     let payload;

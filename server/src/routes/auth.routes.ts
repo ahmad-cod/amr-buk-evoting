@@ -71,8 +71,8 @@ router.get('/student/me', requireStudent, auth.studentMe);
 router.get('/voter/me', requireStudent, auth.studentMe);
 router.post('/student/verify', authLimiter, validate(verifyEligibilitySchema), auth.checkEligibility);
 router.post('/voter/verify', authLimiter, validate(verifyEligibilitySchema), auth.checkEligibility);
-router.post('/student/lookup-hint', authLimiter, auth.lookupRosterHint);
-router.post('/voter/lookup-hint', authLimiter, auth.lookupRosterHint);
+router.post('/student/lookup-hint', auth.lookupRosterHint);
+router.post('/voter/lookup-hint', auth.lookupRosterHint);
 
 // Password reset
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), auth.forgotPassword);

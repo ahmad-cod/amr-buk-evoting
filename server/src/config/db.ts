@@ -19,6 +19,8 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     serverSelectionTimeoutMS: 30000,
     connectTimeoutMS: 30000,
     socketTimeoutMS: 45000,
+    maxPoolSize: 150,
+    minPoolSize: 10,
   });
 
   try {

@@ -114,6 +114,25 @@ export async function castVote(input: CastVoteInput): Promise<CastVoteResult> {
   }[] = [];
   const seenPositions = new Set<string>();
 
+  // Validate format and collect all selected candidate IDs for batch retrieval
+  const allCandidateIds: string[] = [];
+  for (const sel of input.selections) {
+    for (const cid of sel.candidateIds) {
+      if (!mongoose.isValidObjectId(cid)) {
+        throw ApiError.badRequest('Invalid candidate selection');
+      }
+      allCandidateIds.push(cid);
+    }
+  }
+
+  // Batch query all approved candidates for this election in a single round-trip
+  const approvedCandidates = await Candidate.find({
+    _id: { $in: allCandidateIds },
+    electionId: election._id,
+    status: CANDIDATE_STATUS.APPROVED,
+  });
+  const candidateMap = new Map(approvedCandidates.map((c) => [c.id, c]));
+
   for (const sel of input.selections) {
     const position = positionMap.get(sel.positionId);
     if (!position) {
@@ -135,16 +154,8 @@ export async function castVote(input: CastVoteInput): Promise<CastVoteResult> {
     }
 
     for (const candidateId of uniqueCandidateIds) {
-      if (!mongoose.isValidObjectId(candidateId)) {
-        throw ApiError.badRequest('Invalid candidate selection');
-      }
-      const candidate = await Candidate.findOne({
-        _id: candidateId,
-        electionId: election._id,
-        positionId: position._id,
-        status: CANDIDATE_STATUS.APPROVED,
-      });
-      if (!candidate) {
+      const candidate = candidateMap.get(candidateId);
+      if (!candidate || String(candidate.positionId) !== String(position._id)) {
         throw ApiError.badRequest('A selected candidate is not valid for this position');
       }
       // Cryptographically random ObjectId to prevent BSON counter correlation (remediated from audit Finding 3.1)

@@ -41,9 +41,9 @@ const envSchema = z.object({
   SUPABASE_STORAGE_BUCKET: z.string().default('candidate-photos'),
 
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
-  RATE_LIMIT_MAX_GENERAL: z.coerce.number().default(300),
-  RATE_LIMIT_MAX_AUTH: z.coerce.number().default(10),
-  RATE_LIMIT_MAX_VOTE: z.coerce.number().default(20),
+  RATE_LIMIT_MAX_GENERAL: z.coerce.number().default(5000),
+  RATE_LIMIT_MAX_AUTH: z.coerce.number().default(30),
+  RATE_LIMIT_MAX_VOTE: z.coerce.number().default(500),
 });
 
 const parsed = envSchema.safeParse(process.env);
