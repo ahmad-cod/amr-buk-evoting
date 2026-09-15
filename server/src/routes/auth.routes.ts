@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as auth from '../controllers/auth.controller';
 import { validate } from '../middleware/validate';
-import { authLimiter, verificationLimiter } from '../middleware/rateLimit';
+import { authLimiter, verificationLimiter, forgotPasswordLimiter, resetPasswordLimiter } from '../middleware/rateLimit';
 import { requireAdmin, requireStudent } from '../middleware/auth';
 import {
   adminLoginSchema,
@@ -12,6 +12,7 @@ import {
   verifyEmailTokenSchema,
   completeRegistrationSchema,
   forgotPasswordSchema,
+  validateRecoveryTokenSchema,
   resetPasswordSchema,
 } from '../validators/schemas';
 
@@ -74,8 +75,17 @@ router.post('/voter/verify', authLimiter, validate(verifyEligibilitySchema), aut
 router.post('/student/lookup-hint', auth.lookupRosterHint);
 router.post('/voter/lookup-hint', auth.lookupRosterHint);
 
-// Password reset
-router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), auth.forgotPassword);
-router.post('/reset-password', authLimiter, validate(resetPasswordSchema), auth.resetPassword);
+// Password reset / Account recovery
+router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), auth.forgotPassword);
+router.post('/voter/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), auth.forgotPassword);
+router.post('/student/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), auth.forgotPassword);
+
+router.post('/validate-recovery-token', authLimiter, validate(validateRecoveryTokenSchema), auth.validateRecoveryToken);
+router.post('/voter/validate-recovery-token', authLimiter, validate(validateRecoveryTokenSchema), auth.validateRecoveryToken);
+router.post('/student/validate-recovery-token', authLimiter, validate(validateRecoveryTokenSchema), auth.validateRecoveryToken);
+
+router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), auth.resetPassword);
+router.post('/voter/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), auth.resetPassword);
+router.post('/student/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), auth.resetPassword);
 
 export default router;

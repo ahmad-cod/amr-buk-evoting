@@ -26,6 +26,11 @@ export const requireAdmin = asyncHandler(
     if (!admin || !admin.isActive) {
       throw ApiError.unauthorized('Admin account is inactive or no longer exists');
     }
+    const adminTokenVersion = admin.tokenVersion ?? 0;
+    const sessionTokenVersion = payload.tokenVersion ?? 0;
+    if (sessionTokenVersion < adminTokenVersion) {
+      throw ApiError.unauthorized('Session expired. Please sign in again.');
+    }
 
     req.admin = { id: admin.id, username: admin.username, role: admin.role };
     next();
@@ -51,6 +56,11 @@ export const requireStudent = asyncHandler(
 
     const student = await Student.findById(payload.sub);
     if (!student) throw ApiError.unauthorized('Account not found');
+    const studentTokenVersion = student.tokenVersion ?? 0;
+    const sessionTokenVersion = payload.tokenVersion ?? 0;
+    if (sessionTokenVersion < studentTokenVersion) {
+      throw ApiError.unauthorized('Session expired. Please sign in again.');
+    }
 
     req.student = { id: student.id, email: student.email, registrationNumber: student.registrationNumber };
     next();

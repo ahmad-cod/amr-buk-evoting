@@ -64,13 +64,22 @@ export const verifyEligibilitySchema = z
     message: 'Enter your email address or voter identifier',
   });
 
-export const forgotPasswordSchema = z.object({
-  identifier: z.string().min(1, 'Enter your email address or voter identifier'),
+export const forgotPasswordSchema = z
+  .object({
+    email: z.string().optional(),
+    identifier: z.string().optional(),
+  })
+  .refine((d) => Boolean((d.email && d.email.trim()) || (d.identifier && d.identifier.trim())), {
+    message: 'Enter your email address or voter identifier',
+  });
+
+export const validateRecoveryTokenSchema = z.object({
+  token: z.string().min(1, 'Recovery token is required'),
 });
 
 export const resetPasswordSchema = z
   .object({
-    token: z.string().min(1),
+    token: z.string().min(1, 'Recovery token is required'),
     password,
     confirmPassword: z.string(),
   })

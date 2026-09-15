@@ -62,3 +62,35 @@ export const verificationLimiter = rateLimit({
   },
   message: message('Too many verification email requests. Please wait a few minutes before trying again.'),
 });
+
+// Dedicated rate limiter for /forgot-password.
+// Keyed by IP + target account to protect against brute-force and email flooding while
+// preventing campus NAT / shared IP blockades.
+export const forgotPasswordLimiter = rateLimit({
+  windowMs,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test' && !req.headers['x-test-rate-limit'],
+  keyGenerator: (req) => {
+    const account = (req.body?.email || req.body?.identifier || '').toLowerCase().trim();
+    const ip = req.clientIp || req.ip || 'unknown';
+    return account ? `forgot_${ip}_${account}` : `forgot_${ip}`;
+  },
+  message: message('Too many password recovery attempts. Please wait a few minutes before trying again.'),
+});
+
+// Rate limiter for /reset-password attempts.
+export const resetPasswordLimiter = rateLimit({
+  windowMs,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test' && !req.headers['x-test-rate-limit'],
+  keyGenerator: (req) => {
+    const ip = req.clientIp || req.ip || 'unknown';
+    return `reset_${ip}`;
+  },
+  message: message('Too many password reset attempts. Please wait a few minutes before trying again.'),
+});
+

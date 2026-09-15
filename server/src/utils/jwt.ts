@@ -9,6 +9,7 @@ export interface JwtPayload {
   sub: string; // user id
   principal: Principal;
   role?: Role; // present for admins
+  tokenVersion?: number; // session invalidation version
 }
 
 export const ADMIN_COOKIE = 'amr_admin_token';

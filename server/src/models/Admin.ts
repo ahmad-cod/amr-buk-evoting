@@ -9,6 +9,7 @@ export interface AdminDoc extends Document {
   password: string;
   role: Role;
   isActive: boolean;
+  tokenVersion?: number;
   lastLoginAt?: Date;
   createdBy?: Types.ObjectId;
   createdAt: Date;
@@ -36,6 +37,7 @@ const adminSchema = new Schema<AdminDoc>(
       required: true,
     },
     isActive: { type: Boolean, default: true },
+    tokenVersion: { type: Number, default: 0 },
     lastLoginAt: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: 'Admin' },
   },

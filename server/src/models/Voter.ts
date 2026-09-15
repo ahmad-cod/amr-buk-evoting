@@ -40,6 +40,9 @@ export interface VoterDoc extends Document {
   resetTokenHash?: string;
   resetTokenExpires?: Date;
 
+  // Session invalidation version
+  tokenVersion?: number;
+
   importBatchId?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -93,6 +96,8 @@ const voterSchema = new Schema<VoterDoc>(
 
     resetTokenHash: { type: String, select: false },
     resetTokenExpires: { type: Date, select: false },
+
+    tokenVersion: { type: Number, default: 0 },
 
     importBatchId: { type: Schema.Types.ObjectId, ref: 'ImportHistory' },
   },

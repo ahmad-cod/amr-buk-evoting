@@ -6,6 +6,7 @@ import { ApiError } from '../utils/ApiError';
 import { ok } from '../utils/respond';
 import { Admin } from '../models/Admin';
 import { Student } from '../models/Student';
+import { RecoveryToken } from '../models/RecoveryToken';
 import {
   ADMIN_COOKIE,
   STUDENT_COOKIE,
@@ -17,7 +18,7 @@ import {
 } from '../utils/jwt';
 import { recordAudit } from '../services/audit.service';
 import { verifyEligibility } from '../services/student.service';
-import { sendVerificationEmail } from '../services/email.service';
+import { sendVerificationEmail, sendPasswordRecoveryEmail } from '../services/email.service';
 import { env } from '../config/env';
 import { normalizeEmail, normalizeRegNumber } from '../utils/regNumber';
 import { maskEmail } from '../utils/maskEmail';
@@ -37,7 +38,12 @@ export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
   admin.lastLoginAt = new Date();
   await admin.save();
 
-  const token = signToken({ sub: admin.id, principal: 'admin', role: admin.role });
+  const token = signToken({
+    sub: admin.id,
+    principal: 'admin',
+    role: admin.role,
+    tokenVersion: admin.tokenVersion ?? 0,
+  });
   res.cookie(ADMIN_COOKIE, token, cookieOptions());
 
   await recordAudit(
@@ -227,7 +233,11 @@ export const verifyEmailToken = asyncHandler(async (req: Request, res: Response)
   }
 
   // Issue authenticated voter session cookie (amr_voter_token)
-  const sessionToken = signToken({ sub: voter.id, principal: 'student' });
+  const sessionToken = signToken({
+    sub: voter.id,
+    principal: 'student',
+    tokenVersion: voter.tokenVersion ?? 0,
+  });
   res.cookie(STUDENT_COOKIE, sessionToken, cookieOptions());
 
   // Issue optional 15-minute scoped registration session token for legacy password setup if desired
@@ -326,7 +336,11 @@ export const completeRegistration = asyncHandler(async (req: Request, res: Respo
   voter.verificationTokenExpires = undefined;
   await voter.save();
 
-  const token = signToken({ sub: voter.id, principal: 'student' });
+  const token = signToken({
+    sub: voter.id,
+    principal: 'student',
+    tokenVersion: voter.tokenVersion ?? 0,
+  });
   res.cookie(STUDENT_COOKIE, token, cookieOptions());
 
   ok(
@@ -385,7 +399,11 @@ export const studentLogin = asyncHandler(async (req: Request, res: Response) => 
     throw ApiError.forbidden('Your voter eligibility is inactive or revoked. Please contact the AMR IEC.');
   }
 
-  const token = signToken({ sub: student.id, principal: 'student' });
+  const token = signToken({
+    sub: student.id,
+    principal: 'student',
+    tokenVersion: student.tokenVersion ?? 0,
+  });
   res.cookie(STUDENT_COOKIE, token, cookieOptions());
 
   ok(res, {
@@ -454,60 +472,219 @@ export const checkEligibility = asyncHandler(async (req: Request, res: Response)
   });
 });
 
-// ---------- Password reset (token returned in dev; email out of scope) ----------
+export const UNIFORM_RECOVERY_MESSAGE =
+  "If this email is eligible for account recovery, a secure link has been sent. Check spam if you don't see it.";
+
+// ---------- Account Recovery ("Forgot Password") ----------
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
-  const { identifier } = req.body as { identifier: string };
-  const value = identifier.trim();
-  const query = value.includes('@')
-    ? { email: normalizeEmail(value) }
-    : {
-        $or: [
-          { email: normalizeEmail(value) },
-          { serialNumber: value },
-          { registrationNumber: normalizeRegNumber(value) },
-        ],
-      };
+  const { email, identifier } = req.body as { email?: string; identifier?: string };
+  const rawInput = (email || identifier || '').trim();
+  const mail = normalizeEmail(rawInput);
 
-  const student = await Student.findOne(query);
+  // Generic anti-enumeration response object
+  const genericResponse = { message: UNIFORM_RECOVERY_MESSAGE };
 
-  // Always respond the same way to avoid leaking which accounts exist.
-  const genericResponse = {
-    message: 'If an account exists, password reset instructions have been generated.',
-  };
-
-  if (!student || !student.hasRegistered) {
+  if (!mail && !rawInput) {
     return ok(res, genericResponse);
   }
 
-  const rawToken = crypto.randomBytes(32).toString('hex');
-  student.resetTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  student.resetTokenExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 min
-  await student.save();
+  // 1. Check Voter
+  const voter = await Student.findOne({
+    $or: [{ normalizedEmail: mail }, { email: mail }],
+  }).select('+password +isEligible +status');
 
-  // In production, email `rawToken` as a link. For local dev we return it directly.
-  return ok(res, {
-    ...genericResponse,
-    devResetToken: process.env.NODE_ENV === 'production' ? undefined : rawToken,
+  // Check if voter is eligible and in one of the target states
+  let targetVoter = null;
+  if (voter && voter.isEligible && voter.status !== 'REVOKED') {
+    // Target state 1: verified email, no password yet
+    const isVerifiedNoPassword = (voter.isVerified || voter.status === 'VERIFIED') && !voter.password;
+    // Target state 2: existing password, forgotten
+    const hasPassword = Boolean(voter.password);
+
+    if (isVerifiedNoPassword || hasPassword) {
+      targetVoter = voter;
+    }
+  }
+
+  // 2. Check Admin (if no voter matched, or if an admin account matches email/username)
+  let targetAdmin = null;
+  if (!targetVoter) {
+    const admin = await Admin.findOne({
+      username: mail.toLowerCase(),
+      isActive: true,
+    }).select('+password');
+    if (admin) {
+      targetAdmin = admin;
+    }
+  }
+
+  if (!targetVoter && !targetAdmin) {
+    // Dummy hash computation to equalize timing against timing attacks
+    crypto.createHash('sha256').update(rawInput + 'amr_recovery_salt').digest('hex');
+    return ok(res, genericResponse);
+  }
+
+  // Generate cryptographically secure 256-bit token (64 hex characters)
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30-minute expiry
+
+  if (targetVoter) {
+    // Invalidate previous unused recovery tokens for this voter
+    await RecoveryToken.deleteMany({ voterId: targetVoter._id });
+
+    // Store dedicated recovery token hashed at rest
+    await RecoveryToken.create({
+      voterId: targetVoter._id,
+      tokenHash,
+      expiresAt,
+    });
+
+    await sendPasswordRecoveryEmail(targetVoter.email, targetVoter.fullName, rawToken);
+
+    await recordAudit(req, {
+      action: 'voter.recovery_requested',
+      resourceType: 'Voter',
+      resourceId: targetVoter.id,
+      details: { email: maskEmail(targetVoter.email) },
+    });
+  } else if (targetAdmin) {
+    // Invalidate previous unused recovery tokens for this admin
+    await RecoveryToken.deleteMany({ adminId: targetAdmin._id });
+
+    await RecoveryToken.create({
+      adminId: targetAdmin._id,
+      tokenHash,
+      expiresAt,
+    });
+
+    await sendPasswordRecoveryEmail(
+      mail,
+      targetAdmin.fullName || targetAdmin.username,
+      rawToken,
+    );
+
+    await recordAudit(req, {
+      action: 'admin.recovery_requested',
+      resourceType: 'Admin',
+      resourceId: targetAdmin.id,
+      details: { username: targetAdmin.username },
+    });
+  }
+
+  // Always return the exact same generic response
+  return ok(res, genericResponse);
+});
+
+export const validateRecoveryToken = asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.body as { token?: string };
+  if (!token || typeof token !== 'string') {
+    throw ApiError.badRequest('This recovery link is invalid or has expired.');
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+  const recoveryToken = await RecoveryToken.findOne({
+    tokenHash,
+    expiresAt: { $gt: new Date() },
+    usedAt: { $exists: false },
   });
+
+  if (!recoveryToken) {
+    throw ApiError.badRequest('This recovery link is invalid or has expired.');
+  }
+
+  // Ensure underlying account is still valid and eligible
+  if (recoveryToken.voterId) {
+    const voter = await Student.findById(recoveryToken.voterId);
+    if (!voter || !voter.isEligible || voter.status === 'REVOKED') {
+      throw ApiError.badRequest('This recovery link is invalid or has expired.');
+    }
+  } else if (recoveryToken.adminId) {
+    const admin = await Admin.findById(recoveryToken.adminId);
+    if (!admin || !admin.isActive) {
+      throw ApiError.badRequest('This recovery link is invalid or has expired.');
+    }
+  }
+
+  return ok(res, { valid: true, message: 'Recovery link is valid.' });
 });
 
 export const resetPassword = asyncHandler(async (req: Request, res: Response) => {
   const { token, password } = req.body as { token: string; password: string };
-  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  if (!token || typeof token !== 'string') {
+    throw ApiError.badRequest('This recovery link is invalid or has expired.');
+  }
 
-  const student = await Student.findOne({
-    resetTokenHash: tokenHash,
-    resetTokenExpires: { $gt: new Date() },
-  }).select('+resetTokenHash +resetTokenExpires');
+  const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
 
-  if (!student) throw ApiError.badRequest('This reset link is invalid or has expired');
+  // Atomically claim the token to prevent race conditions and double-submits
+  const recoveryToken = await RecoveryToken.findOneAndUpdate(
+    {
+      tokenHash,
+      expiresAt: { $gt: new Date() },
+      usedAt: { $exists: false },
+    },
+    {
+      $set: { usedAt: new Date() },
+    },
+    { new: false },
+  );
 
-  student.password = password;
-  student.resetTokenHash = undefined;
-  student.resetTokenExpires = undefined;
-  await student.save();
+  if (!recoveryToken) {
+    throw ApiError.badRequest('This recovery link is invalid or has expired.');
+  }
 
-  ok(res, { message: 'Your password has been reset. You can now sign in.' });
+  // The token alone authorizes WHICH account gets changed.
+  // Never trust client-provided email/userId/accountId.
+  if (recoveryToken.voterId) {
+    const voter = await Student.findById(recoveryToken.voterId).select('+password');
+    if (!voter || !voter.isEligible || voter.status === 'REVOKED') {
+      throw ApiError.badRequest('This recovery link is invalid or has expired.');
+    }
+
+    // Update password, ensure registered and verified, bump tokenVersion to invalidate existing sessions
+    voter.password = password;
+    voter.hasRegistered = true;
+    voter.isVerified = true;
+    voter.status = 'VERIFIED';
+    voter.tokenVersion = (voter.tokenVersion || 0) + 1;
+    await voter.save();
+
+    // Clean up any remaining unused recovery tokens for this voter
+    await RecoveryToken.deleteMany({ voterId: voter._id });
+
+    await recordAudit(req, {
+      action: 'voter.password_recovered',
+      resourceType: 'Voter',
+      resourceId: voter.id,
+      details: { email: maskEmail(voter.email) },
+    });
+  } else if (recoveryToken.adminId) {
+    const admin = await Admin.findById(recoveryToken.adminId).select('+password');
+    if (!admin || !admin.isActive) {
+      throw ApiError.badRequest('This recovery link is invalid or has expired.');
+    }
+
+    admin.password = password;
+    admin.tokenVersion = (admin.tokenVersion || 0) + 1;
+    await admin.save();
+
+    await RecoveryToken.deleteMany({ adminId: admin._id });
+
+    await recordAudit(req, {
+      action: 'admin.password_recovered',
+      resourceType: 'Admin',
+      resourceId: admin.id,
+      details: { username: admin.username },
+    });
+  }
+
+  // Ensure recovery token does NOT grant a session — clear cookies and send voter back to normal login
+  res.clearCookie(STUDENT_COOKIE, clearCookieOptions());
+  res.clearCookie(ADMIN_COOKIE, clearCookieOptions());
+
+  return ok(res, { message: 'Password reset. Log in.' });
 });
 
 /**
