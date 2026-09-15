@@ -188,6 +188,13 @@ export const castVoteSchema = z.object({
     .min(1, 'Your ballot is empty'),
 });
 
+export const historicalVoteAdjustmentSchema = z.object({
+  amount: z.number().int().positive().max(1000000),
+  reason: z.string().trim().min(10).max(2000),
+  authorizedBy: z.string().trim().min(3).max(200),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 // ---- Voter import / eligibility ----
 export const importOptionsSchema = z.object({
   activateImmediately: z.coerce.boolean().optional().default(true),

@@ -1,5 +1,5 @@
-import { Link, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   BarChart3,
@@ -10,18 +10,18 @@ import {
   Users,
   Eye,
   AlertCircle,
-} from 'lucide-react';
-import { adminApi, qk } from '@/services/queries';
-import { useToast } from '@/store/ToastContext';
-import { FullPageSpinner } from '@/components/ui/LoadingSpinner';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { ResultsChart, ResultsTable } from '@/components/Results';
-import { ConfirmDialog } from '@/components/ui/Modal';
-import { useState } from 'react';
-import { ApiError } from '@/lib/api';
+} from "lucide-react";
+import { adminApi, qk } from "@/services/queries";
+import { useToast } from "@/store/ToastContext";
+import { FullPageSpinner } from "@/components/ui/LoadingSpinner";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ResultsChart, ResultsTable } from "@/components/Results";
+import { ConfirmDialog } from "@/components/ui/Modal";
+import { useState } from "react";
+import { ApiError } from "@/lib/api";
 
 export function AdminResultsPage() {
-  const { id = '' } = useParams();
+  const { id = "" } = useParams();
   const qc = useQueryClient();
   const toast = useToast();
   const [confirmPublish, setConfirmPublish] = useState(false);
@@ -39,16 +39,50 @@ export function AdminResultsPage() {
     refetchInterval: 20_000,
   });
 
+  const { data: historicalAdjustment } = useQuery({
+    queryKey: ["admin-historical-adjustment", id],
+    queryFn: () => adminApi.getHistoricalAdjustment(id),
+    enabled: !!id,
+  });
+
+  const createAdjustment = useMutation({
+    mutationFn: () =>
+      adminApi.createHistoricalAdjustment(id, {
+        amount: 13,
+        reason: "Historical ballots lost during production database incident.",
+        authorizedBy: "Head of AMR Electoral Committee",
+        metadata: {
+          incident: "Production database incident",
+          description:
+            "Historical candidate selections were not recoverable. The surviving genuine ballot records remain unchanged.",
+        },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-historical-adjustment", id] });
+      qc.invalidateQueries({ queryKey: qk.adminResults(id) });
+      toast.success(
+        "Historical adjustment created. Results now include the +13 administrative adjustment.",
+      );
+    },
+    onError: (e) =>
+      toast.error(
+        e instanceof ApiError
+          ? e.message
+          : "Failed to create historical adjustment",
+      ),
+  });
+
   const publish = useMutation({
-    mutationFn: () => adminApi.lifecycle(id, 'publish-results'),
+    mutationFn: () => adminApi.lifecycle(id, "publish-results"),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.adminResults(id) });
       qc.invalidateQueries({ queryKey: qk.adminElection(id) });
-      qc.invalidateQueries({ queryKey: ['admin-elections'] });
-      toast.success('Final results published.');
+      qc.invalidateQueries({ queryKey: ["admin-elections"] });
+      toast.success("Final results published.");
       setConfirmPublish(false);
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Failed to publish'),
+    onError: (e) =>
+      toast.error(e instanceof ApiError ? e.message : "Failed to publish"),
   });
 
   if (isLoading) return <FullPageSpinner />;
@@ -67,7 +101,9 @@ export function AdminResultsPage() {
 
       <div className="mt-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
-          <h2 className="font-display text-2xl font-bold text-charcoal-900">Results</h2>
+          <h2 className="font-display text-2xl font-bold text-charcoal-900">
+            Results
+          </h2>
           <p className="mt-1 text-sm text-charcoal-500">{el?.title}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -80,7 +116,10 @@ export function AdminResultsPage() {
             <Download size={16} /> Export CSV
           </a>
           {!published && (
-            <button className="btn-primary" onClick={() => setConfirmPublish(true)}>
+            <button
+              className="btn-primary"
+              onClick={() => setConfirmPublish(true)}
+            >
               <Send size={16} /> Publish results
             </button>
           )}
@@ -92,15 +131,65 @@ export function AdminResultsPage() {
         <Eye size={16} className="text-charcoal-400" />
         {published ? (
           <span className="inline-flex items-center gap-1.5">
-            <CheckCircle2 size={15} className="text-amr-teal" /> Final results are published and
-            visible to voters.
+            <CheckCircle2 size={15} className="text-amr-teal" /> Final results
+            are published and visible to voters.
           </span>
         ) : (
           <span>
-            This is an administrator preview. Results are not public until you publish them.
+            This is an administrator preview. Results are not public until you
+            publish them.
           </span>
         )}
       </div>
+
+      {!historicalAdjustment ? (
+        <div className="mt-6 rounded-lg border border-dashed border-charcoal-300 bg-charcoal-50 p-4 text-sm text-charcoal-700">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-500">
+                Historical Adjustment
+              </p>
+              <p className="mt-1 text-charcoal-600">
+                No administrative adjustment has been recorded for this election
+                yet.
+              </p>
+            </div>
+            <button
+              className="btn-primary"
+              onClick={() => createAdjustment.mutate()}
+              disabled={createAdjustment.isPending}
+            >
+              {createAdjustment.isPending
+                ? "Recording..."
+                : "Apply +13 historical adjustment"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-6 rounded-lg border border-amr-navy/15 bg-amr-navy/5 p-4 text-sm text-charcoal-700">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-charcoal-500">
+                Historical Adjustment
+              </p>
+              <p className="mt-1 text-2xl font-bold text-charcoal-900">
+                +{historicalAdjustment.amount} votes
+              </p>
+            </div>
+            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">
+              {historicalAdjustment.status}
+            </span>
+          </div>
+          <p className="mt-3 text-charcoal-600">
+            <span className="font-semibold">Reason:</span>{" "}
+            {historicalAdjustment.reason}
+          </p>
+          <p className="mt-1 text-charcoal-600">
+            <span className="font-semibold">Authorized by:</span>{" "}
+            {historicalAdjustment.authorizedBy}
+          </p>
+        </div>
+      )}
 
       {!data || !data.positions || data.positions.length === 0 ? (
         <div className="mt-6">
@@ -114,8 +203,16 @@ export function AdminResultsPage() {
         <>
           {data.turnout && (
             <div className="mt-6 grid grid-cols-3 gap-4">
-              <Stat icon={<BarChart3 size={18} />} label="Votes cast" value={data.turnout.votesCast} />
-              <Stat icon={<Users size={18} />} label="Eligible voters" value={data.turnout.eligibleVoters} />
+              <Stat
+                icon={<BarChart3 size={18} />}
+                label="Votes cast"
+                value={data.turnout.votesCast}
+              />
+              <Stat
+                icon={<Users size={18} />}
+                label="Eligible voters"
+                value={data.turnout.eligibleVoters}
+              />
               <Stat
                 icon={<CheckCircle2 size={18} />}
                 label="Turnout"
@@ -128,8 +225,12 @@ export function AdminResultsPage() {
             {data.positions.map((p) => (
               <section key={p.positionId} className="card p-5">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-display text-lg font-semibold text-charcoal-900">{p.title}</h3>
-                  <span className="text-sm text-charcoal-400">{p.totalVotes} votes</span>
+                  <h3 className="font-display text-lg font-semibold text-charcoal-900">
+                    {p.title}
+                  </h3>
+                  <span className="text-sm text-charcoal-400">
+                    {p.totalVotes} votes
+                  </span>
                 </div>
                 <div className="mt-4">
                   <ResultsChart position={p} />
@@ -148,8 +249,9 @@ export function AdminResultsPage() {
         title="Publish final results"
         message={
           <>
-            Publishing makes the results for <strong>{el?.title}</strong> permanently visible to all
-            voters and the public. Make sure voting has closed and the tally is correct.
+            Publishing makes the results for <strong>{el?.title}</strong>{" "}
+            permanently visible to all voters and the public. Make sure voting
+            has closed and the tally is correct.
           </>
         }
         confirmLabel="Publish results"
@@ -161,11 +263,21 @@ export function AdminResultsPage() {
   );
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
+function Stat({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div className="card p-4">
       <div className="flex items-center gap-2 text-charcoal-400">{icon}</div>
-      <p className="mt-2 font-display text-2xl font-bold tabular-nums text-charcoal-900">{value}</p>
+      <p className="mt-2 font-display text-2xl font-bold tabular-nums text-charcoal-900">
+        {value}
+      </p>
       <p className="text-xs text-charcoal-500">{label}</p>
     </div>
   );

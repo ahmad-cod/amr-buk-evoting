@@ -16,6 +16,7 @@ import './models/Ballot';
 import './models/AuditLog';
 import './models/ImportHistory';
 import './models/RecoveryToken';
+import './models/HistoricalVoteAdjustment';
 
 async function bootstrap(): Promise<void> {
   await connectDatabase();

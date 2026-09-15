@@ -1,14 +1,21 @@
-import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BarChart3, Lock, Users, CheckCircle2, Clock } from 'lucide-react';
-import { publicApi, qk } from '@/services/queries';
-import { FullPageSpinner } from '@/components/ui/LoadingSpinner';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { ResultsChart, ResultsTable } from '@/components/Results';
-import { formatDateTime } from '@/lib/utils';
+import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  BarChart3,
+  Lock,
+  Users,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
+import { publicApi, qk } from "@/services/queries";
+import { FullPageSpinner } from "@/components/ui/LoadingSpinner";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ResultsChart, ResultsTable } from "@/components/Results";
+import { formatDateTime } from "@/lib/utils";
 
 export function ResultsPage() {
-  const { slug = '' } = useParams();
+  const { slug = "" } = useParams();
   const { data, isLoading } = useQuery({
     queryKey: qk.publicResults(slug),
     queryFn: () => publicApi.getResults(slug),
@@ -26,7 +33,7 @@ export function ResultsPage() {
           title="Results are not available yet"
           description={
             data?.reason ||
-            'The committee has not published results for this election. Please check back later.'
+            "The committee has not published results for this election. Please check back later."
           }
           action={
             <Link to={`/elections/${slug}`} className="btn-secondary">
@@ -38,7 +45,7 @@ export function ResultsPage() {
     );
   }
 
-  const { election, turnout, positions, isFinal } = data;
+  const { election, turnout, positions, isFinal, historicalAdjustment } = data;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -51,33 +58,60 @@ export function ResultsPage() {
 
       <div className="mt-4 flex items-center justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold text-charcoal-900">Results</h1>
+          <h1 className="font-display text-3xl font-bold text-charcoal-900">
+            Results
+          </h1>
           <p className="mt-1 text-charcoal-500">{election?.title}</p>
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
-            isFinal ? 'bg-green-50 text-green-700' : 'bg-gold-50 text-gold-700'
+            isFinal ? "bg-green-50 text-green-700" : "bg-gold-50 text-gold-700"
           }`}
         >
           {isFinal ? <CheckCircle2 size={16} /> : <Clock size={16} />}
-          {isFinal ? 'Final results' : 'Live results (provisional)'}
+          {isFinal ? "Final results" : "Live results (provisional)"}
         </span>
       </div>
 
       {/* Turnout */}
       {turnout && (
         <div className="mt-6 grid grid-cols-3 gap-4">
-          <Stat label="Votes cast" value={turnout.votesCast} icon={<BarChart3 size={18} />} />
-          <Stat label="Eligible voters" value={turnout.eligibleVoters} icon={<Users size={18} />} />
-          <Stat label="Turnout" value={`${turnout.turnoutPercentage}%`} icon={<CheckCircle2 size={18} />} />
+          <Stat
+            label="Votes cast"
+            value={turnout.votesCast}
+            icon={<BarChart3 size={18} />}
+          />
+          <Stat
+            label="Eligible voters"
+            value={turnout.eligibleVoters}
+            icon={<Users size={18} />}
+          />
+          <Stat
+            label="Turnout"
+            value={`${turnout.turnoutPercentage}%`}
+            icon={<CheckCircle2 size={18} />}
+          />
         </div>
       )}
 
       {!isFinal && (
         <p className="mt-4 rounded-md border border-gold-500/30 bg-gold-50 px-4 py-3 text-sm text-gold-800">
-          These results are provisional and may change until voting closes and the committee
-          publishes final results.
+          These results are provisional and may change until voting closes and
+          the committee publishes final results.
         </p>
+      )}
+
+      {historicalAdjustment && (
+        <div className="mt-4 rounded-md border border-charcoal-200 bg-charcoal-50 px-4 py-3 text-sm text-charcoal-700">
+          <p className="font-medium text-charcoal-900">
+            Historical administrative adjustment
+          </p>
+          <p className="mt-1">
+            Recorded ballots: {historicalAdjustment.recordedVotes} · Historical
+            adjustment: +{historicalAdjustment.amount} · Reported tally:{" "}
+            {historicalAdjustment.reportedVotes}
+          </p>
+        </div>
       )}
 
       {/* Positions */}
@@ -85,8 +119,12 @@ export function ResultsPage() {
         {positions?.map((p) => (
           <section key={p.positionId} className="card p-5">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-lg font-semibold text-charcoal-900">{p.title}</h2>
-              <span className="text-sm text-charcoal-400">{p.totalVotes} votes</span>
+              <h2 className="font-display text-lg font-semibold text-charcoal-900">
+                {p.title}
+              </h2>
+              <span className="text-sm text-charcoal-400">
+                {p.totalVotes} votes
+              </span>
             </div>
             <div className="mt-4">
               <ResultsChart position={p} />
@@ -107,11 +145,21 @@ export function ResultsPage() {
   );
 }
 
-function Stat({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
+function Stat({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+}) {
   return (
     <div className="card p-4">
       <div className="flex items-center gap-2 text-charcoal-400">{icon}</div>
-      <p className="mt-2 font-display text-2xl font-bold text-charcoal-900 tabular-nums">{value}</p>
+      <p className="mt-2 font-display text-2xl font-bold text-charcoal-900 tabular-nums">
+        {value}
+      </p>
       <p className="text-xs text-charcoal-500">{label}</p>
     </div>
   );

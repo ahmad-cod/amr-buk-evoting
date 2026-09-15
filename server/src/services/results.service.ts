@@ -5,6 +5,10 @@ import { Candidate } from '../models/Candidate';
 import { Ballot } from '../models/Ballot';
 import { VoteReceipt } from '../models/VoteReceipt';
 import { Student } from '../models/Student';
+import {
+  HistoricalVoteAdjustment,
+  HISTORICAL_ADJUSTMENT_STATUS,
+} from '../models/HistoricalVoteAdjustment';
 import { CANDIDATE_STATUS, ELECTION_STATUS } from '../config/constants';
 import { effectiveStatus } from './election.service';
 
@@ -25,6 +29,17 @@ export interface PositionResult {
   candidates: CandidateResult[];
 }
 
+export interface HistoricalAdjustmentSummary {
+  amount: number;
+  reason: string;
+  authorizedBy: string;
+  status: string;
+  recordedVotes: number;
+  reportedVotes: number;
+  applied: boolean;
+  createdAt?: string;
+}
+
 export interface ElectionResults {
   election: {
     id: string;
@@ -40,8 +55,29 @@ export interface ElectionResults {
     turnoutPercentage: number;
   };
   positions: PositionResult[];
+  historicalAdjustment?: HistoricalAdjustmentSummary;
   isFinal: boolean;
   generatedAt: string;
+}
+
+export function calculateHistoricalAdjustmentVotes({
+  recordedVotes,
+  adjustmentAmount,
+  approvedCandidateCount,
+}: {
+  recordedVotes: number;
+  adjustmentAmount: number;
+  approvedCandidateCount: number;
+}): { recordedVotes: number; adjustmentVotes: number; reportedVotes: number; applied: boolean } {
+  const effectiveAdjustment = Number.isFinite(adjustmentAmount) ? Math.max(0, adjustmentAmount) : 0;
+  const applied = approvedCandidateCount === 1 && effectiveAdjustment > 0;
+  const adjustmentVotes = applied ? effectiveAdjustment : 0;
+  return {
+    recordedVotes,
+    adjustmentVotes,
+    reportedVotes: recordedVotes + adjustmentVotes,
+    applied,
+  };
 }
 
 /**
@@ -56,7 +92,7 @@ export async function computeResults(election: ElectionDoc): Promise<ElectionRes
   const isClosed = status === ELECTION_STATUS.CLOSED || status === ELECTION_STATUS.ARCHIVED;
   const markWinners = isClosed && election.finalResultsPublished;
 
-  const [positions, candidates, tallies, votesCast, eligibleVoters] = await Promise.all([
+  const [positions, candidates, tallies, votesCast, eligibleVoters, historicalAdjustment] = await Promise.all([
     Position.find({ electionId, isActive: true }).sort({ displayOrder: 1, title: 1 }),
     Candidate.find({ electionId, status: CANDIDATE_STATUS.APPROVED }),
     Ballot.aggregate<{ _id: { positionId: Types.ObjectId; candidateId: Types.ObjectId }; count: number }>([
@@ -70,6 +106,7 @@ export async function computeResults(election: ElectionDoc): Promise<ElectionRes
     ]),
     VoteReceipt.countDocuments({ electionId }),
     countEligibleVoters(election),
+    HistoricalVoteAdjustment.findOne({ electionId, status: HISTORICAL_ADJUSTMENT_STATUS.ACTIVE }).lean(),
   ]);
 
   const tallyMap = new Map<string, number>();
@@ -91,21 +128,36 @@ export async function computeResults(election: ElectionDoc): Promise<ElectionRes
       votes: tallyMap.get(`${position.id}:${c.id}`) || 0,
     }));
 
-    const totalVotes = counted.reduce((sum, x) => sum + x.votes, 0);
+    const recordedTotalVotes = counted.reduce((sum, x) => sum + x.votes, 0);
     const maxVotes = counted.reduce((m, x) => Math.max(m, x.votes), 0);
+    const positionAdjustment = historicalAdjustment && posCandidates.length === 1 ? historicalAdjustment.amount : 0;
+    const adjustmentSummary = calculateHistoricalAdjustmentVotes({
+      recordedVotes: recordedTotalVotes,
+      adjustmentAmount: positionAdjustment,
+      approvedCandidateCount: posCandidates.length,
+    });
 
     const candidateResults: CandidateResult[] = counted
       .map(({ candidate, votes }) => ({
         candidateId: candidate.id,
         fullName: candidate.fullName,
         imageUrl: candidate.imageUrl,
-        votes,
-        percentage: totalVotes ? Math.round((votes / totalVotes) * 1000) / 10 : 0,
+        votes: adjustmentSummary.applied && posCandidates.length === 1 ? votes + positionAdjustment : votes,
+        percentage:
+          adjustmentSummary.reportedVotes > 0
+            ? Math.round(
+                (((adjustmentSummary.applied && posCandidates.length === 1 ? votes + positionAdjustment : votes) /
+                  adjustmentSummary.reportedVotes) *
+                  1000) /
+                  1,
+              ) / 10
+            : 0,
         // Winner only when finalized, votes > 0, and unambiguous (no tie at the top).
         isWinner:
           markWinners &&
-          votes > 0 &&
-          votes === maxVotes &&
+          (adjustmentSummary.applied && posCandidates.length === 1 ? votes + positionAdjustment : votes) > 0 &&
+          (adjustmentSummary.applied && posCandidates.length === 1 ? votes + positionAdjustment : votes) ===
+            maxVotes + (adjustmentSummary.applied && posCandidates.length === 1 ? positionAdjustment : 0) &&
           counted.filter((x) => x.votes === maxVotes).length === 1,
       }))
       .sort((a, b) => b.votes - a.votes);
@@ -114,10 +166,24 @@ export async function computeResults(election: ElectionDoc): Promise<ElectionRes
       positionId: position.id,
       title: position.title,
       displayOrder: position.displayOrder,
-      totalVotes,
+      totalVotes: adjustmentSummary.reportedVotes,
       candidates: candidateResults,
     };
   });
+
+  const reportedVotesCast = historicalAdjustment ? votesCast + historicalAdjustment.amount : votesCast;
+  const reportedAdjustment = historicalAdjustment
+    ? {
+        amount: historicalAdjustment.amount,
+        reason: historicalAdjustment.reason,
+        authorizedBy: historicalAdjustment.authorizedBy,
+        status: historicalAdjustment.status,
+        recordedVotes: votesCast,
+        reportedVotes: reportedVotesCast,
+        applied: true,
+        createdAt: historicalAdjustment.createdAt ? new Date(historicalAdjustment.createdAt).toISOString() : undefined,
+      }
+    : undefined;
 
   return {
     election: {
@@ -130,10 +196,11 @@ export async function computeResults(election: ElectionDoc): Promise<ElectionRes
     },
     turnout: {
       eligibleVoters,
-      votesCast,
-      turnoutPercentage: eligibleVoters ? Math.round((votesCast / eligibleVoters) * 1000) / 10 : 0,
+      votesCast: reportedVotesCast,
+      turnoutPercentage: eligibleVoters ? Math.round((reportedVotesCast / eligibleVoters) * 1000) / 10 : 0,
     },
     positions: positionResults,
+    historicalAdjustment: reportedAdjustment,
     isFinal: markWinners,
     generatedAt: new Date().toISOString(),
   };

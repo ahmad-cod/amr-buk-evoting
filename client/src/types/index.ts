@@ -145,6 +145,17 @@ export interface PositionResult {
   candidates: CandidateResult[];
 }
 
+export interface HistoricalAdjustmentSummary {
+  amount: number;
+  reason: string;
+  authorizedBy: string;
+  status: string;
+  recordedVotes: number;
+  reportedVotes: number;
+  applied: boolean;
+  createdAt?: string;
+}
+
 export interface ResultsResponse {
   available: boolean;
   reason?: string;
@@ -163,6 +174,7 @@ export interface ResultsResponse {
     turnoutPercentage: number;
   };
   positions?: PositionResult[];
+  historicalAdjustment?: HistoricalAdjustmentSummary;
   isFinal?: boolean;
   generatedAt?: string;
 }

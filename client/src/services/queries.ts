@@ -130,6 +130,15 @@ export const adminApi = {
   },
 
   adminResults: (id: string) => api.get<ResultsResponse>(`/admin/elections/${id}/results`),
+  getHistoricalAdjustment: (id: string) =>
+    api.get<{ amount: number; reason: string; authorizedBy: string; status: string } | null>(
+      `/admin/elections/${id}/historical-adjustment`,
+    ),
+  createHistoricalAdjustment: (id: string, body: unknown) =>
+    api.post<{ amount: number; reason: string; authorizedBy: string; status: string }>(
+      `/admin/elections/${id}/historical-adjustment`,
+      body,
+    ),
   exportResultsUrl: (id: string) => `/api/admin/elections/${id}/export-results`,
 
   listStudents: (
