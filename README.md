@@ -19,6 +19,7 @@ The system lets accredited AMR Club members verify their eligibility with their 
 - [Supabase Storage setup](#supabase-storage-setup)
 - [Environment variables](#environment-variables)
 - [Seeding](#seeding)
+- [Account recovery indexes](#account-recovery-indexes)
 - [Importing the student register](#importing-the-student-register)
 - [Running in development](#running-in-development)
 - [Building for production](#building-for-production)
@@ -32,6 +33,7 @@ The system lets accredited AMR Club members verify their eligibility with their 
 ## Features
 
 **For voters**
+
 - Register by verifying an accredited email address from the AMR Club roster.
 - Browse elections, official positions, and candidate profiles with manifestos.
 - Cast a private ballot with a clear review-and-confirm step.
@@ -39,6 +41,7 @@ The system lets accredited AMR Club members verify their eligibility with their 
 - View live or final results when the committee publishes them.
 
 **For the electoral committee**
+
 - Institutional admin portal with role-aware navigation and AMR palette styling.
 - Full election lifecycle: draft → scheduled → active → paused → closed → archived.
 - Manage positions (with the 12 official AMR executive slate available as a one-click seed) and candidates (with photo upload and approval workflow).
@@ -167,6 +170,7 @@ MONGODB_URI=mongodb://127.0.0.1:27017/amr_buk_evoting?replicaSet=rs0
 Candidate photos are uploaded and stored in Supabase Storage. The backend mediates all uploads using privileged service-role credentials and serves public URLs for approved candidate images.
 
 Configure the following in `server/.env`:
+
 - `SUPABASE_URL`: Your Supabase project URL (e.g. `https://<project-ref>.supabase.co`).
 - `SUPABASE_SERVICE_ROLE_KEY`: Service role secret key (never exposed to clients).
 - `SUPABASE_BUCKET_NAME`: Bucket name for candidate photos (default: `candidate-photos`).
@@ -179,29 +183,28 @@ The server automatically verifies and initializes the public bucket on startup i
 
 ### Server (`server/.env`)
 
-| Variable | Description |
-| --- | --- |
-| `PORT` | API port (default `5000`). |
-| `NODE_ENV` | `development` or `production`. |
-| `MONGODB_URI` | MongoDB connection string (replica set required for transactions). |
-| `JWT_SECRET` | Long random string used to sign auth tokens **and** to salt hashed IPs. |
-| `JWT_EXPIRES_IN` | Token lifetime, e.g. `7d`. |
-| `COOKIE_MAX_AGE_DAYS` | Auth cookie lifetime in days. |
-| `CLIENT_URL` | Frontend origin, for CORS (e.g. `http://localhost:5173`). |
-| `SUPABASE_URL` | Supabase project URL. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Privileged secret key for server-mediated storage operations. |
-| `SUPABASE_BUCKET_NAME` | Storage bucket name for candidate photos (default `candidate-photos`). |
-| `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_PASSWORD` | Credentials created by `seed:admin`. |
-| `RATE_LIMIT_*` | Rate-limit window and per-window caps for general, auth, and vote routes. |
+| Variable                                       | Description                                                               |
+| ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `PORT`                                         | API port (default `5000`).                                                |
+| `NODE_ENV`                                     | `development` or `production`.                                            |
+| `MONGODB_URI`                                  | MongoDB connection string (replica set required for transactions).        |
+| `JWT_SECRET`                                   | Long random string used to sign auth tokens **and** to salt hashed IPs.   |
+| `JWT_EXPIRES_IN`                               | Token lifetime, e.g. `7d`.                                                |
+| `COOKIE_MAX_AGE_DAYS`                          | Auth cookie lifetime in days.                                             |
+| `CLIENT_URL`                                   | Frontend origin, for CORS (e.g. `http://localhost:5173`).                 |
+| `SUPABASE_URL`                                 | Supabase project URL.                                                     |
+| `SUPABASE_SERVICE_ROLE_KEY`                    | Privileged secret key for server-mediated storage operations.             |
+| `SUPABASE_BUCKET_NAME`                         | Storage bucket name for candidate photos (default `candidate-photos`).    |
+| `SUPER_ADMIN_USERNAME`, `SUPER_ADMIN_PASSWORD` | Credentials created by `seed:admin`.                                      |
+| `RATE_LIMIT_*`                                 | Rate-limit window and per-window caps for general, auth, and vote routes. |
 
 ### Client (`client/.env`)
 
-| Variable | Description |
-| --- | --- |
+| Variable       | Description                                                                                                                               |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `VITE_API_URL` | API base path. Defaults to `/api`; the Vite dev server proxies `/api` to `localhost:5000`. For a separately-hosted API, set the full URL. |
 
 ---
-
 
 ## Seeding
 
@@ -212,6 +215,19 @@ npm run seed:demo    # imports the sample CSV and creates a live demo election,
 ```
 
 `seed:admin` is idempotent and safe to re-run. Run it once before first sign-in.
+
+## Account recovery indexes
+
+Account recovery uses the MongoDB `RecoveryToken` collection. Mongoose creates
+the collection and its indexes when the model is first used, but local/dev
+setups can make that state explicit with:
+
+```bash
+npm run setup:recovery --prefix server
+```
+
+This command creates and lists the token hash, account-reference, and expiry
+indexes, then disconnects. It refuses to run when `NODE_ENV=production`.
 
 ---
 
@@ -228,6 +244,7 @@ Only students present in the imported register may create accounts and vote.
 ```
 Full Name, Registration Number, Email Address, Department, Level
 ```
+
 A sample file is provided at `server/data/students-sample.csv`.
 
 ---
@@ -272,7 +289,8 @@ The client build outputs static files to `client/dist`, which you can serve from
 Security is the core design goal. The key measures:
 
 **Ballot privacy (vote/voter separation).** When a student votes, the system writes two unlinked records inside one transaction:
-- a **VoteReceipt** — keyed by `(electionId, studentId)` with a unique index. It records *that* the student voted (and stores their receipt code), but contains **no candidate selections**.
+
+- a **VoteReceipt** — keyed by `(electionId, studentId)` with a unique index. It records _that_ the student voted (and stores their receipt code), but contains **no candidate selections**.
 - one or more **Ballot** documents — each records only `(electionId, positionId, candidateId)`. Ballots contain **no reference to the voter**.
 
 Because the two are never joined, turnout can be verified and results tallied accurately, while it is impossible to reconstruct how any individual voted.
@@ -298,6 +316,7 @@ Because the two are never joined, turnout can be verified and results tallied ac
 All routes are prefixed with `/api`. Protected routes require the appropriate cookie session.
 
 **Auth**
+
 ```
 POST   /auth/admin/login
 POST   /auth/admin/logout
@@ -310,6 +329,7 @@ GET    /auth/student/me
 ```
 
 **Public elections & voting**
+
 ```
 GET    /elections                  # list (supports status, search, pagination)
 GET    /elections/:slug            # election + positions + approved candidates
@@ -321,6 +341,7 @@ GET    /elections/:slug/receipt        # student — receipt + QR
 ```
 
 **Election management (admin)**
+
 ```
 POST   /elections
 PATCH  /elections/:id
@@ -341,6 +362,7 @@ POST   /candidates/:id/upload-image
 ```
 
 **Admin reads, results & administration**
+
 ```
 GET    /admin/elections                     # admin list
 GET    /admin/elections/:id                 # single election detail
@@ -370,4 +392,4 @@ DELETE /admin/admins/:id                     # super admin
 
 ---
 
-*Administered by AMR IEC — free, fair, and credible elections for the Antimicrobial Resistance (AMR) Club, Bayero University Kano. Re-architected for AMR Club BUK by [Ahmad Aroyehun](https://www.linkedin.com/in/ahmadaroyehun) · Based on original design by [Anas Yakubu](https://anasyakubu.netlify.app).*
+_Administered by AMR IEC — free, fair, and credible elections for the Antimicrobial Resistance (AMR) Club, Bayero University Kano. Re-architected for AMR Club BUK by [Ahmad Aroyehun](https://www.linkedin.com/in/ahmadaroyehun) · Based on original design by [Anas Yakubu](https://anasyakubu.netlify.app)._
