@@ -14,6 +14,8 @@ import { GuidelinesPage } from '@/pages/public/GuidelinesPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { VerifyPage } from '@/pages/auth/VerifyPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { VotingPage } from '@/pages/vote/VotingPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -49,6 +51,8 @@ export function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify" element={<VerifyPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/vote/:slug"
             element={
